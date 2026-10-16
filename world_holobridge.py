@@ -17,7 +17,7 @@ This is a reference prototype of a governance workflow. It is not legal advice
 and not a production system. Names used in the demo are placeholders.
 
 License: MIT OR Apache-2.0 (dual-licensed; see LICENSE-MIT and LICENSE-APACHE)
-Version: 0.2.0.dev0 (last release: 0.1.0)
+Version: 0.2.0
 """
 
 # SPDX-License-Identifier: MIT OR Apache-2.0
@@ -35,7 +35,7 @@ import sys
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Set, Union
 import uuid
 
-__version__ = "0.2.0.dev0"
+__version__ = "0.2.0"
 
 # ---------------------------------------------------------------------
 # Configuration & Constants

@@ -26,7 +26,9 @@ section names the check in the code that enforces it. Download it as Markdown
 or JSON, or print it. English and French.
 
 The page runs entirely in the browser: no server, no external requests, no
-storage, no analytics. The same plan comes from Python:
+storage, no analytics. The same plan comes from Python (install with
+`pip install .` from a checkout to get the `world-holobridge` command, or use
+`python world_holobridge.py plan ...`):
 
 ```sh
 world-holobridge plan --city Moncton --region "New Brunswick" --country Canada
@@ -35,6 +37,8 @@ world-holobridge plan --city Moncton --country Canada --run-pipeline   # show th
 ```
 
 ```python
+import world_holobridge as wh
+
 plan = wh.generate_community_plan("Moncton", "Canada", region="New Brunswick", language="fr")
 print(wh.plan_to_markdown(plan))
 ```
@@ -121,7 +125,8 @@ consent. Note that importing the original file creates `world_holobridge.db`
 and `output/` in the current directory; the working module does not.
 
 See [CHANGELOG.md](CHANGELOG.md) for every change. The original header said
-"Version: 1.0.0"; this first public release is numbered 0.1.0.
+"Version: 1.0.0"; the first public release is numbered 0.2.0 (0.1.0 was
+prepared but never released).
 
 ## License
 

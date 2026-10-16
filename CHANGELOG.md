@@ -1,9 +1,9 @@
 # Changelog
 
-## 0.2.0-dev — unreleased
+## 0.2.0 — 2026-10-16
 
-Release metadata (`CITATION.cff`, `.zenodo.json`) stays at 0.1.0 until the
-next release; the package version is `0.2.0.dev0`.
+First release. Version 0.1.0 (below) was prepared and pushed to the
+repository but never released; its changes ship in 0.2.0.
 
 ### Added
 
@@ -45,9 +45,9 @@ next release; the package version is `0.2.0.dev0`.
 - The Fredericton / Wolastoqey names remain only in the existing demo, which
   is labelled as a placeholder example.
 
-## 0.1.0 — 2026-10-16
+## 0.1.0 — 2026-10-16 (never released)
 
-First public version. The original script is kept unchanged as
+First public version of the repository; not released. The original script is kept unchanged as
 `world_holobridge_original.py` (its header said "Version: 1.0.0" and
 "License: Apache-2.0 / MIT"); the working module is `world_holobridge.py`.
 The commit history shows the original, then each change.
@@ -108,6 +108,6 @@ The commit history shows the original, then each change.
 
 ### Added
 
-- pytest suite (44 tests) and GitHub Actions CI on Python 3.10–3.13.
+- pytest suite (44 tests at the time) and GitHub Actions CI on Python 3.10–3.13.
 - `pyproject.toml`, `CITATION.cff`, `.zenodo.json`, `.gitignore`, dual
   `LICENSE-MIT` / `LICENSE-APACHE`.

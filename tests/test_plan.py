@@ -154,3 +154,10 @@ def test_demo_subcommand_still_works(tmp_path):
     out = subprocess.run([sys.executable, str(ROOT / "world_holobridge.py"), "demo", "--db", ":memory:",
                           "--output-dir", str(tmp_path)], cwd=tmp_path, capture_output=True, text=True)
     assert out.returncode == 0 and "Pipeline run completed successfully." in out.stdout
+
+
+def test_versions_agree():
+    pyproject = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.M).group(1)
+    citation = re.search(r'^version: "([^"]+)"', (ROOT / "CITATION.cff").read_text(encoding="utf-8"), re.M).group(1)
+    zenodo = json.loads((ROOT / ".zenodo.json").read_text(encoding="utf-8"))["version"]
+    assert pyproject == citation == zenodo == wh.__version__

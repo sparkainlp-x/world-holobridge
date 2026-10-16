@@ -1,9 +1,9 @@
 {
   "upload_type": "software",
-  "title": "World-HoloBridge: reference prototype of a governance workflow for community media projects",
-  "version": "0.1.0",
+  "title": "World-HoloBridge: governance reference prototype and community plan generator",
+  "version": "0.2.0",
   "publication_date": "2026-10-16",
-  "description": "<p><strong>World-HoloBridge</strong> is a small, standard-library Python and SQLite reference prototype of a governance workflow for community-led cultural and spatial-media projects.</p><p><strong>Gates.</strong> Contributor consent with expiry, withdrawal and prohibited uses (a prohibition in any active record wins); Indigenous material may only be registered by a contributor flagged as an Indigenous governance authority and is never marked for external AI training; non-public material cannot be attached to a project; four accessibility features are required; publication is blocked while any contract is unpaid or any contributor's consent has lapsed; guardrails cannot be disabled. It also records incidents, keeps an audit log made append-only by SQLite triggers, and exports a JSON impact report.</p><p><strong>Provenance.</strong> The original script is kept unchanged in the repository; its own demo stopped at the consent gate (one contributor lacked community-storytelling consent). Version 0.1.0 fixes the demo and several robustness issues and adds a pytest suite run in CI on Python 3.10–3.13.</p><p><strong>Limits.</strong> Reference prototype only: not legal advice, not a production system, and not a substitute for community-defined protocols. No endorsement by, or consultation with, any Wolastoqey community or other community is claimed. Names in the demo are placeholders.</p><p><strong>License.</strong> Dual-licensed MIT OR Apache-2.0 at the user's option.</p>",
+  "description": "<p><strong>World-HoloBridge</strong> is a small, standard-library Python and SQLite reference prototype of a governance workflow for community-led cultural and spatial-media projects.</p><p><strong>Gates.</strong> Contributor consent with expiry, withdrawal and prohibited uses (a prohibition in any active record wins); Indigenous material may only be registered by a contributor flagged as an Indigenous governance authority and is never marked for external AI training; non-public material cannot be attached to a project; four accessibility features are required; publication is blocked while any contract is unpaid or any contributor's consent has lapsed; guardrails cannot be disabled. It also records incidents, keeps an audit log made append-only by SQLite triggers, and exports a JSON impact report.</p><p><strong>Community plan generator.</strong> For any city, region and country, it produces a starting plan from the framework's own rules (advisory circle, the five protocols, consent checklist, accessibility, payment before publication and contract template, incidents, AI-use assessment, a five-phase timeline, evaluation), in Python and in a static English/French web page (https://sparkainlp-x.github.io/world-holobridge/) that runs entirely in the browser. It never names Indigenous nations, communities or organizations or says whose territory a city is on; it directs users to identify and confirm rights-holders locally and directly with the communities, mentions native-land.ca only as a non-authoritative starting point, includes no local statistics, and notes that consent, privacy and Indigenous-data rules (e.g. OCAP®, CARE Principles) vary.</p><p><strong>Provenance.</strong> The original script is kept unchanged in the repository; its own demo stopped at the consent gate (one contributor lacked community-storytelling consent). The working module fixes the demo and several robustness issues. 0.2.0 is the first release (0.1.0 was never released). 103 Python tests and 7 JavaScript tests run in CI on Python 3.10–3.13, including a Python/JavaScript parity test.</p><p><strong>Limits.</strong> Reference prototype only: not legal advice, not a production system, and not a substitute for community-defined protocols. No endorsement by, or consultation with, any Wolastoqey community or other community is claimed. Names in the demo are placeholders.</p><p><strong>License.</strong> Dual-licensed MIT OR Apache-2.0 at the user's option.</p>",
   "creators": [
     {
       "name": "Brisson, Jean-François",
@@ -22,7 +22,8 @@
     "audit log",
     "digital humanities",
     "research software",
-    "SQLite"
+    "SQLite",
+    "community planning"
   ],
   "notes": "Dual-licensed MIT OR Apache-2.0; both license texts (LICENSE-MIT, LICENSE-APACHE) are included. Zenodo's metadata field holds a single license identifier.",
   "related_identifiers": [
@@ -30,6 +31,11 @@
       "identifier": "https://github.com/sparkainlp-x/world-holobridge",
       "relation": "isSupplementTo",
       "resource_type": "software"
+    },
+    {
+      "identifier": "https://sparkainlp-x.github.io/world-holobridge/",
+      "relation": "isDocumentedBy",
+      "resource_type": "other"
     }
   ]
 }

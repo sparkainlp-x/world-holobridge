@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "world-holobridge"
-version = "0.2.0.dev0"
+version = "0.2.0"
 description = "Reference prototype of a consent, cultural-authority, payment and accessibility governance workflow for community media projects, with a community-plan generator (SQLite, standard library only)."
 readme = "README.md"
 requires-python = ">=3.10"
