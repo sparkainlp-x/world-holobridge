@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>World-HoloBridge — community plan generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="no-print">
+    <div class="brand">World-HoloBridge</div>
+    <div class="langs" role="group" aria-label="Language / Langue">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+    </div>
+  </header>
+  <main>
+    <section class="intro no-print">
+      <h1 data-i18n="heading">Community plan generator</h1>
+      <p data-i18n="lede"></p>
+      <p class="scope" data-i18n="scope"></p>
+    </section>
+    <form id="plan-form" class="no-print" novalidate>
+      <label><span data-i18n="city">City</span><input id="city" name="city" autocomplete="off" maxlength="200" required></label>
+      <label><span data-i18n="region">Region</span><input id="region" name="region" autocomplete="off" maxlength="200"></label>
+      <label><span data-i18n="country">Country</span><input id="country" name="country" autocomplete="off" maxlength="200" required></label>
+      <button type="submit" id="generate" data-i18n="generate">Generate plan</button>
+    </form>
+    <p id="status" role="alert" class="status no-print"></p>
+    <div id="actions" class="actions no-print" hidden>
+      <button type="button" id="dl-md" data-i18n="download_md">Download Markdown</button>
+      <button type="button" id="dl-json" data-i18n="download_json">Download JSON</button>
+      <button type="button" id="print" data-i18n="print">Print</button>
+    </div>
+    <div id="output" aria-live="polite"></div>
+  </main>
+  <footer class="no-print">
+    <span data-i18n="footer"></span>
+    <a href="https://github.com/sparkainlp-x/world-holobridge">github.com/sparkainlp-x/world-holobridge</a>
+  </footer>
+  <script src="plan.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

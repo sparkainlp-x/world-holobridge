@@ -17,7 +17,7 @@ This is a reference prototype of a governance workflow. It is not legal advice
 and not a production system. Names used in the demo are placeholders.
 
 License: MIT OR Apache-2.0 (dual-licensed; see LICENSE-MIT and LICENSE-APACHE)
-Version: 0.1.0
+Version: 0.2.0.dev0 (last release: 0.1.0)
 """
 
 # SPDX-License-Identifier: MIT OR Apache-2.0
@@ -27,12 +27,15 @@ from datetime import date, datetime, timedelta, timezone
 import argparse
 import json
 import math
+import os
 from pathlib import Path
+import re
 import sqlite3
+import sys
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Set, Union
 import uuid
 
-__version__ = "0.1.0"
+__version__ = "0.2.0.dev0"
 
 # ---------------------------------------------------------------------
 # Configuration & Constants
@@ -831,6 +834,236 @@ def generate_impact_report(adapter: WorldHoloBridgeAdapter, export_dir: Union[st
 
 
 # ---------------------------------------------------------------------
+# Community plan generator
+# ---------------------------------------------------------------------
+#
+# The plan text lives in plan_template.json, which the browser page
+# (site/plan.js) reads too, so both produce identical plans. The template
+# never names an Indigenous nation, community or organization for a city and
+# contains no local statistics; it tells users to identify and confirm
+# rights-holders locally and directly with the communities.
+
+PLAN_TEMPLATE_NAME = "plan_template.json"
+_PLAN_TEMPLATE: Optional[Dict[str, Any]] = None
+_PLACEHOLDER = re.compile(r"\{(city|country|location)\}")
+_TRIM = re.compile(r"^[ \t\n\r\u00a0\u3000\ufeff]+|[ \t\n\r\u00a0\u3000\ufeff]+$")
+_CONTROL = re.compile(r"[\u0000-\u001f\u007f]")
+_MD_SPECIAL = re.compile(r"([\\`*_\[\]<>|])")
+
+
+def _template_candidates() -> List[Path]:
+    env = os.environ.get("WORLD_HOLOBRIDGE_TEMPLATE")
+    paths = [Path(env)] if env else []
+    paths.append(Path(__file__).resolve().with_name(PLAN_TEMPLATE_NAME))
+    paths.append(Path(sys.prefix) / "share" / "world-holobridge" / PLAN_TEMPLATE_NAME)
+    return paths
+
+
+def load_plan_template() -> Dict[str, Any]:
+    """Loads (and caches) the shared plan template."""
+    global _PLAN_TEMPLATE
+    if _PLAN_TEMPLATE is None:
+        for candidate in _template_candidates():
+            if candidate.is_file():
+                _PLAN_TEMPLATE = json.loads(candidate.read_text(encoding="utf-8"))
+                break
+        else:
+            raise FileNotFoundError(f"{PLAN_TEMPLATE_NAME} not found next to the module or in sys.prefix/share.")
+    return _PLAN_TEMPLATE
+
+
+def clean_plan_field(value: Any, label: str, required: bool = True, max_length: Optional[int] = None) -> Optional[str]:
+    """Same rules as cleanField in site/plan.js: trim, reject empty (when
+    required), over-long or control-character input."""
+    if max_length is None:
+        max_length = load_plan_template()["max_field_length"]
+    if value is None:
+        if required:
+            raise ValueError(f"{label} is required.")
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be text.")
+    value = _TRIM.sub("", value)
+    if not value:
+        if required:
+            raise ValueError(f"{label} is required.")
+        return None
+    if len(value) > max_length:
+        raise ValueError(f"{label} must be at most {max_length} characters.")
+    if _CONTROL.search(value):
+        raise ValueError(f"{label} contains characters that are not allowed.")
+    return value
+
+
+def _fill(node: Any, values: Dict[str, str]) -> Any:
+    if isinstance(node, str):
+        return _PLACEHOLDER.sub(lambda m: values[m.group(1)], node)
+    if isinstance(node, list):
+        return [_fill(n, values) for n in node]
+    if isinstance(node, dict):
+        return {k: _fill(v, values) for k, v in node.items()}
+    return node
+
+
+def generate_community_plan(city: str, country: str, region: Optional[str] = None, language: str = "en") -> Dict[str, Any]:
+    """Builds a structured community plan for any city from the framework's
+    rules. Deterministic: the same input gives the same plan (no timestamp),
+    in Python and in the browser."""
+    template = load_plan_template()
+    if language not in template["languages"]:
+        raise ValueError(f"Language must be one of {template['languages']}.")
+    city = clean_plan_field(city, "City")
+    country = clean_plan_field(country, "Country")
+    region = clean_plan_field(region, "Region", required=False)
+    display = ", ".join(p for p in (city, region, country) if p)
+    content = _fill(template["content"][language], {"city": city, "country": country, "location": display})
+    plan: Dict[str, Any] = {
+        "schema": template["schema"],
+        "language": language,
+        "location": {"city": city, "region": region, "country": country, "display": display},
+    }
+    plan.update(content)
+    return plan
+
+
+def _md(text: str) -> str:
+    return _MD_SPECIAL.sub(r"\\\1", text)
+
+
+def plan_to_markdown(plan: Dict[str, Any]) -> str:
+    """Markdown export; identical to planToMarkdown in site/plan.js."""
+    lines = [f"# {_md(plan['title'])}", "", f"**{plan['md']['location']}:** {_md(plan['location']['display'])}", ""]
+    for notice in plan["notices"]:
+        lines.append(f"> {_md(notice)}")
+        lines.append(">")
+    if plan["notices"]:
+        lines.pop()
+        lines.append("")
+    for section in plan["sections"]:
+        lines += [f"## {_md(section['title'])}", ""]
+        if section["intro"]:
+            lines += [_md(section["intro"]), ""]
+        for item in section["items"]:
+            if item["label"]:
+                lines.append(f"- **{_md(item['label'])}:** {_md(item['text'])}")
+            else:
+                lines.append(f"- {_md(item['text'])}")
+        if section["items"]:
+            lines.append("")
+        if section["note"]:
+            lines += [_md(section["note"]), ""]
+        if section["gate"]:
+            lines += [f"*{plan['md']['gate']}: {_md(section['gate'])}*", ""]
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def plan_to_json(plan: Dict[str, Any]) -> str:
+    """JSON export; identical to planToJson in site/plan.js."""
+    return json.dumps(plan, indent=2, ensure_ascii=False) + "\n"
+
+
+def _plan_section(plan: Dict[str, Any], section_id: str) -> Dict[str, Any]:
+    for section in plan["sections"]:
+        if section["id"] == section_id:
+            return section
+    raise KeyError(section_id)
+
+
+def run_plan_pipeline(plan: Dict[str, Any]) -> Dict[str, Any]:
+    """Runs the governance pipeline on the active database using the plan's
+    advisory roles, protocols and accessibility features, with placeholder
+    contributors, to show how each section maps to a gate. Indigenous
+    material is deliberately not exercised: it needs a governance authority
+    designated by the communities themselves."""
+    checks: List[Dict[str, str]] = []
+    loc = plan["location"]
+    adapter = WorldHoloBridgeAdapter(
+        country=loc["country"], city=loc["city"],
+        cultural_context="To be identified and confirmed with local communities",
+        lead_organization="To be confirmed",
+        advisory_circle=[i["text"] for i in _plan_section(plan, "advisory_circle")["items"]],
+    )
+    checks.append({"gate": "advisory_circle", "result": "accepted"})
+    adapter.set_protocols({i["label"]: i["text"] for i in _plan_section(plan, "protocols")["items"]})
+    checks.append({"gate": "protocols", "result": "all five accepted"})
+
+    expires_on = (_today() + timedelta(days=365)).isoformat()
+    people = []
+    for name in ("Placeholder contributor A", "Placeholder contributor B"):
+        cid = add_contributor(name, "Placeholder role")
+        register_consent(cid, ["community_storytelling", "project_evaluation"], ["external_ai_training"], expires_on)
+        people.append(cid)
+    checks.append({"gate": "consent", "result": "active community_storytelling consent recorded"})
+
+    features = {i["label"] for i in _plan_section(plan, "accessibility")["items"]}
+    project_id = create_project(adapter, "Placeholder theme", "Placeholder format", "Placeholder human lead", people, features)
+    checks.append({"gate": "accessibility", "result": "project created with all required features"})
+
+    contracts = [create_contract(cid, project_id, "Placeholder role", 1.0) for cid in people]
+    try:
+        publish_project(project_id, "Advisory circle")
+        checks.append({"gate": "payment", "result": "UNEXPECTED: published while unpaid"})
+    except PermissionError:
+        checks.append({"gate": "payment", "result": "publication blocked while unpaid"})
+    for n, contract in enumerate(contracts, 1):
+        mark_paid(contract, f"PLACEHOLDER-{n}")
+    publish_project(project_id, "Advisory circle")
+    checks.append({"gate": "payment", "result": "published after all contracts paid"})
+
+    assessment = assess_ai_use(adapter, "Placeholder task", "Placeholder domain", "Placeholder AI use",
+                               "Placeholder decision owner", sensitive_data=True)
+    checks.append({"gate": "ai_use", "result": assessment["status"]})
+    incident = report_incident(project_id, "Placeholder incident", "Pipeline check", "low")
+    resolve_incident(incident, "Placeholder corrective action")
+    checks.append({"gate": "incidents", "result": "reported and resolved"})
+    checks.append({"gate": "indigenous_rights_holders",
+                   "result": "not exercised: requires a governance authority designated by the communities"})
+    report = generate_impact_report(adapter)
+    checks.append({"gate": "evaluation", "result": "impact report generated"})
+    return {"checks": checks, "report": report}
+
+
+def _slug(text: str) -> str:
+    slug = re.sub(r"[^\w]+", "-", text.lower(), flags=re.UNICODE).strip("-")
+    return slug or "plan"
+
+
+def _plan_main(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(prog="world-holobridge plan",
+                                     description="Generate a community plan for a city.")
+    parser.add_argument("--city", required=True)
+    parser.add_argument("--country", required=True)
+    parser.add_argument("--region")
+    parser.add_argument("--language", default="en", choices=load_plan_template()["languages"])
+    parser.add_argument("--format", default="md", choices=["md", "json"], help="Printed format (default: md)")
+    parser.add_argument("--out-dir", help="Also write <slug>.md and <slug>.json here")
+    parser.add_argument("--run-pipeline", action="store_true",
+                        help="Run the governance pipeline from the plan (in-memory database by default)")
+    parser.add_argument("--db", default=":memory:", help="Database for --run-pipeline (default: %(default)s)")
+    parser.add_argument("--output-dir", default=str(EXPORT_DIR), help="Impact-report directory for --run-pipeline")
+    args = parser.parse_args(argv)
+    try:
+        plan = generate_community_plan(args.city, args.country, args.region, args.language)
+    except ValueError as exc:
+        parser.error(str(exc))
+    print(plan_to_markdown(plan) if args.format == "md" else plan_to_json(plan), end="")
+    if args.out_dir:
+        out = Path(args.out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        stem = f"community_plan_{_slug(plan['location']['display'])}_{plan['language']}"
+        (out / f"{stem}.md").write_text(plan_to_markdown(plan), encoding="utf-8")
+        (out / f"{stem}.json").write_text(plan_to_json(plan), encoding="utf-8")
+    if args.run_pipeline:
+        configure(db_path=args.db, export_dir=args.output_dir)
+        try:
+            result = run_plan_pipeline(plan)
+        finally:
+            close_connection()
+        print(json.dumps(result["checks"], indent=2, ensure_ascii=False), file=sys.stderr)
+    return 0
+
+
+# ---------------------------------------------------------------------
 # Reproducible Test & Deployment Verification
 # ---------------------------------------------------------------------
 
@@ -944,7 +1177,15 @@ def run_demo() -> Dict[str, Any]:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the World-HoloBridge demo pipeline.")
+    """``world-holobridge [demo] [--db ...]`` runs the demo pipeline;
+    ``world-holobridge plan --city ... --country ...`` generates a plan."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "plan":
+        return _plan_main(argv[1:])
+    if argv and argv[0] == "demo":
+        argv = argv[1:]
+    parser = argparse.ArgumentParser(prog="world-holobridge [demo]",
+                                     description="Run the World-HoloBridge demo pipeline (placeholder Fredericton/Wolastoqey example).")
     parser.add_argument("--db", default=str(DB_PATH),
                         help="SQLite database path, or ':memory:' (default: %(default)s)")
     parser.add_argument("--output-dir", default=str(EXPORT_DIR),

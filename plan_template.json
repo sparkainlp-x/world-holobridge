@@ -1,0 +1,756 @@
+{
+  "schema": "world-holobridge-community-plan/1",
+  "languages": [
+    "en",
+    "fr"
+  ],
+  "max_field_length": 100,
+  "content": {
+    "en": {
+      "title": "Community plan for {location}",
+      "notices": [
+        "Generated from the World-HoloBridge framework rules for {location}. It is a starting template to adapt with the people involved, not a finished plan.",
+        "It contains no local statistics, population figures, organization names or Indigenous nation names. Add local facts only from sources you can cite, and confirm them with the people concerned.",
+        "Not legal advice. World-HoloBridge is a reference prototype, not a production system."
+      ],
+      "sections": [
+        {
+          "id": "indigenous_rights_holders",
+          "title": "Indigenous nations and rights-holders",
+          "intro": "This plan does not say whose traditional territory {city} is on, and it does not name any Indigenous nation, community or organization. That has to be determined locally, with the communities themselves.",
+          "items": [
+            {
+              "label": null,
+              "text": "Identify the Indigenous nations and rights-holders connected to {location} through local sources (for example nation or community governments, treaty or land-claim bodies, and regional Indigenous organizations)."
+            },
+            {
+              "label": null,
+              "text": "Confirm directly with those communities whether and how they want to be involved, how they want to be named, and who speaks for them on governance of cultural material."
+            },
+            {
+              "label": null,
+              "text": "native-land.ca (https://native-land.ca) can be a starting point for questions only. It is not authoritative and does not represent official or legal boundaries."
+            },
+            {
+              "label": null,
+              "text": "Indigenous cultural material is registered only under a governance authority the community designates, is never used for external AI training, and is displayed publicly only with explicit permission."
+            },
+            {
+              "label": null,
+              "text": "Budget for paid participation and allow the time communities need; engagement is a relationship, not a checkbox."
+            }
+          ],
+          "note": "Until rights-holders are confirmed, do not register or display Indigenous cultural material.",
+          "gate": "register_indigenous_material requires a contributor flagged as an Indigenous governance authority; create_project rejects material without public-display permission."
+        },
+        {
+          "id": "advisory_circle",
+          "title": "Paid advisory circle",
+          "intro": "The framework requires a paid advisory circle before any other step. Suggested roles, to adapt locally:",
+          "items": [
+            {
+              "label": null,
+              "text": "Indigenous representative(s) or knowledge holder(s), as designated by the communities themselves"
+            },
+            {
+              "label": null,
+              "text": "Local artist or cultural worker"
+            },
+            {
+              "label": null,
+              "text": "Neighbourhood or newcomer representative"
+            },
+            {
+              "label": null,
+              "text": "Disability and accessibility advocate"
+            },
+            {
+              "label": null,
+              "text": "Small business or non-profit representative"
+            },
+            {
+              "label": null,
+              "text": "Youth representative"
+            },
+            {
+              "label": null,
+              "text": "Older adult representative"
+            }
+          ],
+          "note": "Members are paid for their time. The circle approves publication.",
+          "gate": "WorldHoloBridgeAdapter refuses an empty advisory circle."
+        },
+        {
+          "id": "protocols",
+          "title": "Required protocols",
+          "intro": "All five protocols must be written down before work starts. Default text, to revise with the advisory circle:",
+          "items": [
+            {
+              "label": "data_scraping",
+              "text": "Prohibited by default; no local heritage material may be scraped or used for AI training."
+            },
+            {
+              "label": "indigenous_leadership",
+              "text": "Indigenous nations and rights-holders, as identified and confirmed locally, hold governance authority over their own cultural material."
+            },
+            {
+              "label": "economic_fairness",
+              "text": "Contributors receive paid contracts before project publication."
+            },
+            {
+              "label": "consent_withdrawal",
+              "text": "Participants may withdraw consent at any time."
+            },
+            {
+              "label": "accessibility",
+              "text": "Every public project includes full multi-modal accessibility."
+            }
+          ],
+          "note": null,
+          "gate": "WorldHoloBridgeAdapter.set_protocols rejects a set missing any of these five."
+        },
+        {
+          "id": "consent",
+          "title": "Consent checklist",
+          "intro": null,
+          "items": [
+            {
+              "label": null,
+              "text": "Record consent for each contributor, listing permitted uses and prohibited uses (for example external_ai_training)."
+            },
+            {
+              "label": null,
+              "text": "Include community_storytelling in the permitted uses of everyone whose contribution appears in the project; without it the project cannot be created."
+            },
+            {
+              "label": null,
+              "text": "Set an expiry date. Expired consent no longer counts and blocks publication."
+            },
+            {
+              "label": null,
+              "text": "Explain in plain language, and in the languages people use, how to withdraw at any time. Withdrawal blocks publication."
+            },
+            {
+              "label": null,
+              "text": "A prohibition in any active consent record overrides permissions in other records."
+            },
+            {
+              "label": null,
+              "text": "Collect only what the project needs and agree retention periods in advance."
+            }
+          ],
+          "note": null,
+          "gate": "consent_allows and create_project; publish_project re-checks consent."
+        },
+        {
+          "id": "accessibility",
+          "title": "Required accessibility features",
+          "intro": "Every project must include all four:",
+          "items": [
+            {
+              "label": "captions",
+              "text": "Captions for all spoken or sung audio."
+            },
+            {
+              "label": "transcript",
+              "text": "Full transcript."
+            },
+            {
+              "label": "plain_language_summary",
+              "text": "Plain-language summary."
+            },
+            {
+              "label": "non_headset_alternative",
+              "text": "A way to experience the work without a headset."
+            }
+          ],
+          "note": "Also recommended where possible: audio description and a mobility-accessible venue. Ask the accessibility advocate what else is needed locally.",
+          "gate": "create_project rejects a project missing any required feature."
+        },
+        {
+          "id": "payment",
+          "title": "Payment before publication and contract template",
+          "intro": "Every contributor gets a written contract. A project cannot be published while any of its contracts is unpaid. Contract fields:",
+          "items": [
+            {
+              "label": "contributor",
+              "text": "The person being paid."
+            },
+            {
+              "label": "role",
+              "text": "What they do on the project."
+            },
+            {
+              "label": "amount",
+              "text": "Agreed fee, greater than zero."
+            },
+            {
+              "label": "currency",
+              "text": "Currency of payment."
+            },
+            {
+              "label": "attribution",
+              "text": "How the contributor is credited."
+            },
+            {
+              "label": "license_terms",
+              "text": "What use is granted, where and for how long."
+            },
+            {
+              "label": "revenue_share",
+              "text": "Any share of revenue, agreed before production."
+            },
+            {
+              "label": "payment_status",
+              "text": "Starts as agreed_not_paid; set to paid with a payment reference."
+            }
+          ],
+          "note": "Set fees with the advisory circle and contributors; this plan does not suggest amounts.",
+          "gate": "create_contract, mark_paid; publish_project is blocked while any contract is unpaid."
+        },
+        {
+          "id": "incidents",
+          "title": "Incident process",
+          "intro": null,
+          "items": [
+            {
+              "label": null,
+              "text": "Anyone, participant or staff, can report an incident, with or without naming a project."
+            },
+            {
+              "label": null,
+              "text": "Record the type, a description and a severity."
+            },
+            {
+              "label": null,
+              "text": "Agree and record a corrective action, then mark the incident resolved."
+            },
+            {
+              "label": null,
+              "text": "Report open and resolved incident counts in the impact report."
+            },
+            {
+              "label": "low",
+              "text": "Minor issue, no harm to people or material."
+            },
+            {
+              "label": "medium",
+              "text": "Concern about consent, credit, accessibility or payment."
+            },
+            {
+              "label": "high",
+              "text": "Harm or likely harm to a person, a community or cultural material."
+            },
+            {
+              "label": "critical",
+              "text": "Serious harm or a breach of community protocol; pause public activity until reviewed."
+            }
+          ],
+          "note": null,
+          "gate": "report_incident and resolve_incident."
+        },
+        {
+          "id": "ai_use",
+          "title": "AI-use assessment",
+          "intro": "Before any AI tool is used, assess the proposed use:",
+          "items": [
+            {
+              "label": null,
+              "text": "AI is assistive only. A named person owns every factual, cultural, ethical and public-facing decision."
+            },
+            {
+              "label": null,
+              "text": "Record the task, the domain, the proposed AI use and the human decision owner."
+            },
+            {
+              "label": null,
+              "text": "Uses involving sensitive data are blocked until consent, minimization, retention limits and a lawful basis are in place."
+            },
+            {
+              "label": null,
+              "text": "Uses involving Indigenous material are blocked until the governance authority approves, and are never used for external AI training."
+            }
+          ],
+          "note": null,
+          "gate": "assess_ai_use returns blocked_pending_governance in those cases."
+        },
+        {
+          "id": "timeline",
+          "title": "Phased timeline",
+          "intro": "Set dates with the advisory circle. No phase starts before the previous one is agreed.",
+          "items": [
+            {
+              "label": "Discovery",
+              "text": "Identify and confirm Indigenous rights-holders and local partners; listen before proposing."
+            },
+            {
+              "label": "Governance setup",
+              "text": "Form and pay the advisory circle; agree the five protocols, consent forms and contract template."
+            },
+            {
+              "label": "Co-design",
+              "text": "Shape themes and formats with contributors; record consent and sign contracts."
+            },
+            {
+              "label": "Pilot",
+              "text": "Build and show a small pilot with all four accessibility features; pay contributors before publication."
+            },
+            {
+              "label": "Evaluation",
+              "text": "Generate the impact report, gather community feedback, and decide together what continues."
+            }
+          ],
+          "note": null,
+          "gate": null
+        },
+        {
+          "id": "evaluation",
+          "title": "Evaluation and impact report",
+          "intro": "The impact report counts only what the project recorded:",
+          "items": [
+            {
+              "label": null,
+              "text": "Governance: advisory-circle size, contributors, active, expired and withdrawn consents."
+            },
+            {
+              "label": null,
+              "text": "Projects: total, draft and published."
+            },
+            {
+              "label": null,
+              "text": "Payments: contracts, paid and outstanding, totals by currency."
+            },
+            {
+              "label": null,
+              "text": "Accessibility: coverage of each required feature."
+            },
+            {
+              "label": null,
+              "text": "Rights and safety: incidents, open and resolved."
+            }
+          ],
+          "note": "Limits: the report does not claim causal economic impact, should be read alongside community feedback, and Indigenous materials remain governed by the relevant authority. Do not add outside statistics you cannot cite.",
+          "gate": "generate_impact_report."
+        },
+        {
+          "id": "legal",
+          "title": "Law and principles vary",
+          "intro": null,
+          "items": [
+            {
+              "label": null,
+              "text": "Laws on consent, privacy and data differ between countries and, in places, provinces, states or territories. Check the rules that apply in {location}."
+            },
+            {
+              "label": null,
+              "text": "Indigenous data has its own principles, for example OCAP® (ownership, control, access and possession) in Canada and the CARE Principles for Indigenous Data Governance internationally. Communities may have their own protocols, which come first."
+            },
+            {
+              "label": null,
+              "text": "This plan is not legal advice. Get local legal advice where needed."
+            }
+          ],
+          "note": null,
+          "gate": null
+        }
+      ],
+      "md": {
+        "location": "Location",
+        "gate": "Framework check"
+      }
+    },
+    "fr": {
+      "title": "Plan communautaire pour {location}",
+      "notices": [
+        "Généré à partir des règles du cadre World-HoloBridge pour {location}. C'est un modèle de départ à adapter avec les personnes concernées, pas un plan final.",
+        "Il ne contient aucune statistique locale, aucun chiffre de population, aucun nom d'organisation ni aucun nom de nation autochtone. N'ajoutez des faits locaux qu'à partir de sources que vous pouvez citer, et confirmez-les avec les personnes concernées.",
+        "Ceci n'est pas un avis juridique. World-HoloBridge est un prototype de référence, pas un système de production."
+      ],
+      "sections": [
+        {
+          "id": "indigenous_rights_holders",
+          "title": "Nations et titulaires de droits autochtones",
+          "intro": "Ce plan n'indique pas sur quel territoire traditionnel se trouve {city} et ne nomme aucune nation, communauté ou organisation autochtone. Cela doit être déterminé localement, avec les communautés elles-mêmes.",
+          "items": [
+            {
+              "label": null,
+              "text": "Identifiez les nations et titulaires de droits autochtones liés à {location} à l'aide de sources locales (par exemple les gouvernements des nations ou des communautés, les organismes de traités ou de revendications territoriales et les organisations autochtones régionales)."
+            },
+            {
+              "label": null,
+              "text": "Confirmez directement avec ces communautés si et comment elles souhaitent participer, comment elles souhaitent être nommées et qui les représente pour la gouvernance du matériel culturel."
+            },
+            {
+              "label": null,
+              "text": "native-land.ca (https://native-land.ca) peut servir uniquement de point de départ pour poser des questions. Ce site ne fait pas autorité et ne représente pas des frontières officielles ou juridiques."
+            },
+            {
+              "label": null,
+              "text": "Le matériel culturel autochtone n'est enregistré que sous une autorité de gouvernance désignée par la communauté, n'est jamais utilisé pour l'entraînement d'IA externe et n'est présenté publiquement qu'avec une permission explicite."
+            },
+            {
+              "label": null,
+              "text": "Prévoyez un budget pour une participation rémunérée et le temps dont les communautés ont besoin; l'engagement est une relation, pas une case à cocher."
+            }
+          ],
+          "note": "Tant que les titulaires de droits ne sont pas confirmés, n'enregistrez ni ne présentez de matériel culturel autochtone.",
+          "gate": "register_indigenous_material exige un contributeur désigné comme autorité de gouvernance autochtone; create_project refuse le matériel sans permission de présentation publique."
+        },
+        {
+          "id": "advisory_circle",
+          "title": "Cercle consultatif rémunéré",
+          "intro": "Le cadre exige un cercle consultatif rémunéré avant toute autre étape. Rôles suggérés, à adapter localement :",
+          "items": [
+            {
+              "label": null,
+              "text": "Représentant(e)s ou détenteur(-trice)s du savoir autochtones, désigné(e)s par les communautés elles-mêmes"
+            },
+            {
+              "label": null,
+              "text": "Artiste ou travailleur(-euse) culturel(le) local(e)"
+            },
+            {
+              "label": null,
+              "text": "Représentant(e) du quartier ou des personnes nouvellement arrivées"
+            },
+            {
+              "label": null,
+              "text": "Défenseur(-e) des droits des personnes handicapées et de l'accessibilité"
+            },
+            {
+              "label": null,
+              "text": "Représentant(e) d'une petite entreprise ou d'un organisme sans but lucratif"
+            },
+            {
+              "label": null,
+              "text": "Représentant(e) des jeunes"
+            },
+            {
+              "label": null,
+              "text": "Représentant(e) des personnes aînées"
+            }
+          ],
+          "note": "Les membres sont rémunérés pour leur temps. Le cercle approuve la publication.",
+          "gate": "WorldHoloBridgeAdapter refuse un cercle consultatif vide."
+        },
+        {
+          "id": "protocols",
+          "title": "Protocoles requis",
+          "intro": "Les cinq protocoles doivent être rédigés avant le début des travaux. Texte par défaut, à réviser avec le cercle consultatif :",
+          "items": [
+            {
+              "label": "data_scraping",
+              "text": "Interdit par défaut; aucun matériel patrimonial local ne peut être moissonné ni utilisé pour l'entraînement d'IA."
+            },
+            {
+              "label": "indigenous_leadership",
+              "text": "Les nations et titulaires de droits autochtones, identifiés et confirmés localement, détiennent l'autorité de gouvernance sur leur propre matériel culturel."
+            },
+            {
+              "label": "economic_fairness",
+              "text": "Les contributeurs reçoivent des contrats payés avant la publication du projet."
+            },
+            {
+              "label": "consent_withdrawal",
+              "text": "Les participants peuvent retirer leur consentement en tout temps."
+            },
+            {
+              "label": "accessibility",
+              "text": "Chaque projet public offre une accessibilité multimodale complète."
+            }
+          ],
+          "note": null,
+          "gate": "WorldHoloBridgeAdapter.set_protocols refuse un ensemble auquel il manque l'un de ces cinq protocoles."
+        },
+        {
+          "id": "consent",
+          "title": "Liste de vérification du consentement",
+          "intro": null,
+          "items": [
+            {
+              "label": null,
+              "text": "Consignez le consentement de chaque contributeur en précisant les utilisations permises et interdites (par exemple external_ai_training)."
+            },
+            {
+              "label": null,
+              "text": "Incluez community_storytelling dans les utilisations permises de toute personne dont la contribution figure dans le projet; sinon, le projet ne peut pas être créé."
+            },
+            {
+              "label": null,
+              "text": "Fixez une date d'expiration. Un consentement expiré ne compte plus et bloque la publication."
+            },
+            {
+              "label": null,
+              "text": "Expliquez en langage clair, et dans les langues que les gens utilisent, comment retirer son consentement en tout temps. Le retrait bloque la publication."
+            },
+            {
+              "label": null,
+              "text": "Une interdiction dans n'importe quel consentement actif l'emporte sur les permissions des autres consentements."
+            },
+            {
+              "label": null,
+              "text": "Ne recueillez que ce dont le projet a besoin et convenez à l'avance des durées de conservation."
+            }
+          ],
+          "note": null,
+          "gate": "consent_allows et create_project; publish_project vérifie de nouveau le consentement."
+        },
+        {
+          "id": "accessibility",
+          "title": "Caractéristiques d'accessibilité requises",
+          "intro": "Chaque projet doit inclure les quatre :",
+          "items": [
+            {
+              "label": "captions",
+              "text": "Sous-titres pour tout contenu audio parlé ou chanté."
+            },
+            {
+              "label": "transcript",
+              "text": "Transcription complète."
+            },
+            {
+              "label": "plain_language_summary",
+              "text": "Résumé en langage clair."
+            },
+            {
+              "label": "non_headset_alternative",
+              "text": "Une façon de vivre l'œuvre sans casque."
+            }
+          ],
+          "note": "Recommandé aussi lorsque c'est possible : audiodescription et lieu accessible aux personnes à mobilité réduite. Demandez à la personne responsable de l'accessibilité ce qui est nécessaire localement.",
+          "gate": "create_project refuse un projet auquel il manque une caractéristique requise."
+        },
+        {
+          "id": "payment",
+          "title": "Paiement avant publication et modèle de contrat",
+          "intro": "Chaque contributeur reçoit un contrat écrit. Un projet ne peut pas être publié tant qu'un de ses contrats n'est pas payé. Champs du contrat :",
+          "items": [
+            {
+              "label": "contributor",
+              "text": "La personne rémunérée."
+            },
+            {
+              "label": "role",
+              "text": "Ce qu'elle fait dans le projet."
+            },
+            {
+              "label": "amount",
+              "text": "Montant convenu, supérieur à zéro."
+            },
+            {
+              "label": "currency",
+              "text": "Devise du paiement."
+            },
+            {
+              "label": "attribution",
+              "text": "Comment le contributeur est crédité."
+            },
+            {
+              "label": "license_terms",
+              "text": "Quelle utilisation est accordée, où et pour combien de temps."
+            },
+            {
+              "label": "revenue_share",
+              "text": "Tout partage des revenus, convenu avant la production."
+            },
+            {
+              "label": "payment_status",
+              "text": "Commence à agreed_not_paid; passe à paid avec une référence de paiement."
+            }
+          ],
+          "note": "Fixez les montants avec le cercle consultatif et les contributeurs; ce plan ne suggère aucun montant.",
+          "gate": "create_contract, mark_paid; publish_project est bloqué tant qu'un contrat n'est pas payé."
+        },
+        {
+          "id": "incidents",
+          "title": "Processus de gestion des incidents",
+          "intro": null,
+          "items": [
+            {
+              "label": null,
+              "text": "Toute personne, participante ou membre du personnel, peut signaler un incident, avec ou sans nommer un projet."
+            },
+            {
+              "label": null,
+              "text": "Consignez le type, une description et un niveau de gravité."
+            },
+            {
+              "label": null,
+              "text": "Convenez d'une mesure corrective, consignez-la, puis marquez l'incident comme résolu."
+            },
+            {
+              "label": null,
+              "text": "Indiquez le nombre d'incidents ouverts et résolus dans le rapport d'impact."
+            },
+            {
+              "label": "low",
+              "text": "Problème mineur, sans préjudice pour les personnes ou le matériel."
+            },
+            {
+              "label": "medium",
+              "text": "Préoccupation liée au consentement, au crédit, à l'accessibilité ou au paiement."
+            },
+            {
+              "label": "high",
+              "text": "Préjudice, réel ou probable, à une personne, à une communauté ou à du matériel culturel."
+            },
+            {
+              "label": "critical",
+              "text": "Préjudice grave ou manquement à un protocole communautaire; suspendez les activités publiques jusqu'à l'examen."
+            }
+          ],
+          "note": null,
+          "gate": "report_incident et resolve_incident."
+        },
+        {
+          "id": "ai_use",
+          "title": "Évaluation de l'utilisation de l'IA",
+          "intro": "Avant d'utiliser un outil d'IA, évaluez l'utilisation proposée :",
+          "items": [
+            {
+              "label": null,
+              "text": "L'IA ne sert qu'à assister. Une personne nommée est responsable de chaque décision factuelle, culturelle, éthique et publique."
+            },
+            {
+              "label": null,
+              "text": "Consignez la tâche, le domaine, l'utilisation d'IA proposée et la personne responsable de la décision."
+            },
+            {
+              "label": null,
+              "text": "Les utilisations touchant des données sensibles sont bloquées jusqu'à ce que le consentement, la minimisation, les limites de conservation et un fondement légitime soient en place."
+            },
+            {
+              "label": null,
+              "text": "Les utilisations touchant du matériel autochtone sont bloquées jusqu'à l'approbation de l'autorité de gouvernance, et ne servent jamais à l'entraînement d'IA externe."
+            }
+          ],
+          "note": null,
+          "gate": "assess_ai_use renvoie blocked_pending_governance dans ces cas."
+        },
+        {
+          "id": "timeline",
+          "title": "Calendrier par phases",
+          "intro": "Fixez les dates avec le cercle consultatif. Aucune phase ne commence avant que la précédente soit convenue.",
+          "items": [
+            {
+              "label": "Découverte",
+              "text": "Identifier et confirmer les titulaires de droits autochtones et les partenaires locaux; écouter avant de proposer."
+            },
+            {
+              "label": "Mise en place de la gouvernance",
+              "text": "Former et rémunérer le cercle consultatif; convenir des cinq protocoles, des formulaires de consentement et du modèle de contrat."
+            },
+            {
+              "label": "Cocréation",
+              "text": "Définir les thèmes et les formats avec les contributeurs; consigner les consentements et signer les contrats."
+            },
+            {
+              "label": "Projet pilote",
+              "text": "Réaliser et présenter un petit projet pilote avec les quatre caractéristiques d'accessibilité; payer les contributeurs avant la publication."
+            },
+            {
+              "label": "Évaluation",
+              "text": "Produire le rapport d'impact, recueillir les commentaires de la communauté et décider ensemble de la suite."
+            }
+          ],
+          "note": null,
+          "gate": null
+        },
+        {
+          "id": "evaluation",
+          "title": "Évaluation et rapport d'impact",
+          "intro": "Le rapport d'impact ne compte que ce que le projet a consigné :",
+          "items": [
+            {
+              "label": null,
+              "text": "Gouvernance : taille du cercle consultatif, contributeurs, consentements actifs, expirés et retirés."
+            },
+            {
+              "label": null,
+              "text": "Projets : total, ébauches et publiés."
+            },
+            {
+              "label": null,
+              "text": "Paiements : contrats, payés et en attente, totaux par devise."
+            },
+            {
+              "label": null,
+              "text": "Accessibilité : couverture de chaque caractéristique requise."
+            },
+            {
+              "label": null,
+              "text": "Droits et sécurité : incidents ouverts et résolus."
+            }
+          ],
+          "note": "Limites : le rapport ne prétend pas mesurer un impact économique causal, doit être lu avec les commentaires de la communauté, et le matériel autochtone demeure régi par l'autorité concernée. N'ajoutez pas de statistiques externes que vous ne pouvez pas citer.",
+          "gate": "generate_impact_report."
+        },
+        {
+          "id": "legal",
+          "title": "Les lois et les principes varient",
+          "intro": null,
+          "items": [
+            {
+              "label": null,
+              "text": "Les lois sur le consentement, la vie privée et les données varient selon les pays et, dans certains cas, selon les provinces, États ou territoires. Vérifiez les règles qui s'appliquent à {location}."
+            },
+            {
+              "label": null,
+              "text": "Les données autochtones ont leurs propres principes, par exemple les principes PCAP® (propriété, contrôle, accès et possession) au Canada et les principes CARE pour la gouvernance des données autochtones à l'échelle internationale. Les communautés peuvent avoir leurs propres protocoles, qui ont préséance."
+            },
+            {
+              "label": null,
+              "text": "Ce plan n'est pas un avis juridique. Obtenez un avis juridique local au besoin."
+            }
+          ],
+          "note": null,
+          "gate": null
+        }
+      ],
+      "md": {
+        "location": "Lieu",
+        "gate": "Vérification du cadre"
+      }
+    }
+  },
+  "ui": {
+    "en": {
+      "page_title": "World-HoloBridge — community plan generator",
+      "heading": "Community plan generator",
+      "lede": "Enter a city to get a starting governance plan built from the World-HoloBridge rules: consent, Indigenous rights-holders, accessibility, payment before publication, incidents, AI use and evaluation.",
+      "scope": "Runs entirely in your browser. Nothing you type is sent anywhere. Not legal advice; a reference prototype, not a production system.",
+      "city": "City",
+      "region": "Region, province or state (optional)",
+      "country": "Country",
+      "generate": "Generate plan",
+      "download_md": "Download Markdown",
+      "download_json": "Download JSON",
+      "print": "Print",
+      "language": "Language",
+      "err_required": "{field} is required.",
+      "err_length": "{field} must be at most {max} characters.",
+      "err_control": "{field} contains characters that are not allowed.",
+      "footer": "Open source (MIT OR Apache-2.0). Source and tests:",
+      "gate": "Framework check"
+    },
+    "fr": {
+      "page_title": "World-HoloBridge — générateur de plan communautaire",
+      "heading": "Générateur de plan communautaire",
+      "lede": "Entrez une ville pour obtenir un plan de gouvernance de départ fondé sur les règles de World-HoloBridge : consentement, titulaires de droits autochtones, accessibilité, paiement avant publication, incidents, utilisation de l'IA et évaluation.",
+      "scope": "Fonctionne entièrement dans votre navigateur. Rien de ce que vous tapez n'est envoyé ailleurs. Ceci n'est pas un avis juridique; c'est un prototype de référence, pas un système de production.",
+      "city": "Ville",
+      "region": "Région, province ou État (facultatif)",
+      "country": "Pays",
+      "generate": "Générer le plan",
+      "download_md": "Télécharger en Markdown",
+      "download_json": "Télécharger en JSON",
+      "print": "Imprimer",
+      "language": "Langue",
+      "err_required": "Le champ « {field} » est obligatoire.",
+      "err_length": "Le champ « {field} » doit compter au plus {max} caractères.",
+      "err_control": "Le champ « {field} » contient des caractères non permis.",
+      "footer": "Logiciel libre (MIT OR Apache-2.0). Code source et tests :",
+      "gate": "Vérification du cadre"
+    }
+  }
+}

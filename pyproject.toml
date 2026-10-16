@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "world-holobridge"
-version = "0.1.0"
-description = "Reference prototype of a consent, cultural-authority, payment and accessibility governance workflow for community media projects (SQLite, standard library only)."
+version = "0.2.0.dev0"
+description = "Reference prototype of a consent, cultural-authority, payment and accessibility governance workflow for community media projects, with a community-plan generator (SQLite, standard library only)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT OR Apache-2.0"
@@ -29,12 +29,16 @@ test = ["pytest>=7"]
 [project.urls]
 Repository = "https://github.com/sparkainlp-x/world-holobridge"
 Issues = "https://github.com/sparkainlp-x/world-holobridge/issues"
+Homepage = "https://sparkainlp-x.github.io/world-holobridge/"
 
 [project.scripts]
 world-holobridge = "world_holobridge:main"
 
 [tool.setuptools]
 py-modules = ["world_holobridge"]
+
+[tool.setuptools.data-files]
+"share/world-holobridge" = ["plan_template.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

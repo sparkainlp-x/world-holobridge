@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: MIT OR Apache-2.0 */
+:root { --bg: #f7f6f2; --ink: #1d232b; --muted: #55606d; --line: #d8d4ca; --accent: #1f5f8b; --card: #ffffff; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header, main, footer { max-width: 920px; margin: 0 auto; padding: 0 20px; }
+header { display: flex; justify-content: space-between; align-items: center; padding-top: 18px; }
+.brand { font-weight: 700; letter-spacing: .02em; color: var(--accent); }
+.langs button { border: 1px solid var(--line); background: var(--card); padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.langs button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+h1 { font-size: 2rem; margin: 22px 0 8px; }
+.scope { color: var(--muted); font-size: .95rem; }
+form { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 18px 0; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; font-weight: 600; }
+input { font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; }
+input:focus, button:focus { outline: 3px solid #f2b84b; outline-offset: 1px; }
+button { font: inherit; }
+form button, .actions button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.actions[hidden] { display: none; }
+.status { color: #9b2c2c; font-weight: 600; min-height: 1.2em; }
+.plan { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 24px 20px; margin-bottom: 30px; }
+.notices { border-left: 4px solid #f2b84b; background: #fff8e8; padding: 4px 14px; }
+.plan-section h3 { margin: 24px 0 6px; color: var(--accent); }
+.note { font-style: italic; }
+.gate { font-size: .85rem; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+footer { color: var(--muted); font-size: .9rem; padding-bottom: 30px; }
+footer a { color: var(--accent); }
+@media (max-width: 720px) { form { grid-template-columns: 1fr; } }
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .no-print { display: none !important; }
+  .plan { border: 0; padding: 0; }
+  .plan-section { break-inside: avoid-page; }
+  main { max-width: none; }
+}
