@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "World-HoloBridge: reference prototype of a governance workflow for community media projects"
+type: software
+authors:
+  - family-names: "Brisson"
+    given-names: "Jean-François"
+    affiliation: "Spark AI NLP"
+    orcid: "https://orcid.org/0009-0000-9778-5374"
+repository-code: "https://github.com/sparkainlp-x/world-holobridge"
+license:
+  - MIT
+  - Apache-2.0
+version: "0.1.0"
+date-released: "2026-10-16"
+keywords:
+  - governance
+  - consent management
+  - data governance
+  - accessibility
+  - audit log
+  - digital humanities
+  - research software
+abstract: >-
+  A small Python and SQLite reference prototype of a governance workflow for
+  community-led cultural and spatial-media projects. It encodes gates for
+  contributor consent (expiry, withdrawal, prohibited uses), a registered
+  Indigenous governance authority for Indigenous material, public-display
+  permission, required accessibility features, payment before publication,
+  incident reporting, an append-only audit log and an impact-report export.
+  Dual-licensed MIT OR Apache-2.0. Not legal advice and not a production
+  system. No endorsement by, or consultation with, any Wolastoqey community or
+  other community is claimed; names in the demo are placeholders.
