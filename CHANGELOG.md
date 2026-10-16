@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.2.0-dev — unreleased
+
+Release metadata (`CITATION.cff`, `.zenodo.json`) stays at 0.1.0 until the
+next release; the package version is `0.2.0.dev0`.
+
+### Added
+
+- **Community plan generator.** `generate_community_plan(city, country,
+  region=None, language="en")` returns a structured, deterministic plan for any
+  city, built from the framework's own rules: advisory-circle roles, the five
+  required protocols with default text, a consent checklist, the four required
+  accessibility features, payment-before-publication and a contract template,
+  the incident process and severities, the AI-use assessment, a five-phase
+  timeline (discovery, governance setup, co-design, pilot, evaluation),
+  evaluation and the impact report, and a note that laws and principles vary.
+  Each section names the framework check that enforces it.
+- `plan_to_markdown()` and `plan_to_json()` exports; `run_plan_pipeline(plan)`
+  runs the governance pipeline from a plan with placeholder contributors to
+  show how each section maps to a gate.
+- CLI: `world-holobridge plan --city ... --country ... [--region ...]
+  [--language en|fr] [--format md|json] [--out-dir DIR] [--run-pipeline]`.
+  `world-holobridge` / `world-holobridge demo` still run the original demo.
+- **Static web page** (`site/`, deployed to GitHub Pages): form for city,
+  optional region and country; renders the same plan in the browser; download
+  as Markdown or JSON; print view; EN/FR toggle. No server, no external
+  requests, no storage, no tracking; strict Content-Security-Policy; user input
+  is rendered as text nodes only.
+- **Shared template** `plan_template.json` read by both Python and the page,
+  with a parity test that checks byte-identical JSON and Markdown output and
+  identical input validation, plus Node tests for XSS-safe rendering.
+
+### Honesty constraints built into the plan
+
+- The generator never says whose traditional territory a city is on and never
+  names an Indigenous nation, community or organization. It tells users to
+  identify rights-holders through local sources and confirm directly with the
+  communities, and points to native-land.ca only as a non-authoritative
+  starting point. Tests check that no nation names (and no figures) appear.
+- It includes no local statistics, populations or organizations, and does not
+  suggest fee amounts.
+- It notes that consent, privacy and Indigenous-data rules vary (OCAP® in
+  Canada, CARE Principles) and that it is not legal advice.
+- The Fredericton / Wolastoqey names remain only in the existing demo, which
+  is labelled as a placeholder example.
+
 ## 0.1.0 — 2026-10-16
 
 First public version. The original script is kept unchanged as

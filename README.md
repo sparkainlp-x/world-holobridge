@@ -13,6 +13,44 @@ when a safeguard is not met, and records what happened in an audit log.
 > "Wolastoqey Governance Representative") are **placeholders**, not real people
 > or bodies.
 
+## Community plan generator
+
+**Try it in the browser:** https://sparkainlp-x.github.io/world-holobridge/
+
+Enter a city, an optional region and a country to get a starting plan built
+from the framework's own rules: paid advisory-circle roles, the five required
+protocols, a consent checklist, the required accessibility features, payment
+before publication with a contract template, the incident process, the AI-use
+assessment, a five-phase timeline, evaluation and the impact report. Each
+section names the check in the code that enforces it. Download it as Markdown
+or JSON, or print it. English and French.
+
+The page runs entirely in the browser: no server, no external requests, no
+storage, no analytics. The same plan comes from Python:
+
+```sh
+world-holobridge plan --city Moncton --region "New Brunswick" --country Canada
+world-holobridge plan --city Moncton --country Canada --language fr --format json --out-dir plans
+world-holobridge plan --city Moncton --country Canada --run-pipeline   # show the gates working
+```
+
+```python
+plan = wh.generate_community_plan("Moncton", "Canada", region="New Brunswick", language="fr")
+print(wh.plan_to_markdown(plan))
+```
+
+Both read `plan_template.json`; a test checks that Python and the browser
+produce byte-identical JSON and Markdown.
+
+**What the plan will not do.** It never says whose traditional territory a
+city is on and never names an Indigenous nation, community or organization.
+Instead it asks you to identify the nations and rights-holders through local
+sources and to confirm directly with those communities; native-land.ca is
+mentioned only as a starting point that is not authoritative. It contains no
+local statistics, population figures or organization names and suggests no fee
+amounts. It notes that laws on consent, privacy and Indigenous data vary (for
+example OCAP® in Canada and the CARE Principles) and it is not legal advice.
+
 ## What it checks
 
 | Gate | Behaviour |
@@ -38,6 +76,9 @@ transaction, so a failed check leaves no partial records.
 
 Python 3.10–3.13, no dependencies.
 
+The demo below is a labelled placeholder example set in Fredericton; its
+names are not real people or bodies.
+
 ```sh
 python world_holobridge.py                       # writes world_holobridge.db and output/
 python world_holobridge.py --db :memory: --output-dir /tmp/holobridge
@@ -57,12 +98,17 @@ wh.register_consent(cid, ["community_storytelling"], ["external_ai_training"], "
 
 ```sh
 pip install pytest
-python -m pytest -q
+python -m pytest -q                 # Python tests, including the Python/JS parity test (needs node)
+node --test tests/js/plan.test.js   # JavaScript tests (rendering, XSS safety, validation)
+python scripts/build_site.py _site && python -m http.server -d _site 8000   # preview the page
 ```
 
-44 tests cover every gate above, transactional behaviour, the append-only
-audit log, idempotency, the impact report, the demo run end to end, and the
-original script's behaviour. CI runs them on Python 3.10, 3.11, 3.12 and 3.13.
+The Python suite covers every gate above, transactional behaviour, the
+append-only audit log, idempotency, the impact report, the demo, the original
+script's behaviour, and the plan generator (all sections present, location in
+the output, no nation names or figures, input validation, Markdown escaping,
+CLI, pipeline). CI runs it on Python 3.10, 3.11, 3.12 and 3.13 together with
+the Node tests.
 
 ## Provenance and the original script
 
