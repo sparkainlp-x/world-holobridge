@@ -1,5 +1,7 @@
 # World-HoloBridge
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23423941.svg)](https://doi.org/10.5281/zenodo.23423941)
+
 A small reference prototype of a **governance workflow** for community-led
 cultural and spatial-media projects, written in standard-library Python with
 SQLite. It turns a set of written safeguards into code that refuses to proceed
@@ -143,3 +145,7 @@ above, without additional terms or conditions.
 
 See [CITATION.cff](CITATION.cff). Author: Jean-François Brisson (Spark AI NLP),
 ORCID [0009-0000-9778-5374](https://orcid.org/0009-0000-9778-5374).
+
+## DOI
+
+Concept DOI (all versions): [10.5281/zenodo.23423941](https://doi.org/10.5281/zenodo.23423941). Version DOI for v0.2.0: [10.5281/zenodo.23423942](https://doi.org/10.5281/zenodo.23423942).

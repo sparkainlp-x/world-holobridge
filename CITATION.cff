@@ -13,6 +13,14 @@ license:
   - Apache-2.0
 version: "0.2.0"
 date-released: "2026-10-16"
+doi: 10.5281/zenodo.23423941
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23423941
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: 10.5281/zenodo.23423942
+    description: "Version DOI for v0.2.0"
 keywords:
   - governance
   - consent management
