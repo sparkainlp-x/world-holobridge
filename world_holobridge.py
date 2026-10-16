@@ -13,24 +13,36 @@ projects. It operationalizes data governance protocols, inclusive consent
 management, Indigenous cultural authority oversight, fair compensation gatekeeping, 
 accessibility requirements, incident reporting, and structured evaluation export.
 
-License: Apache-2.0 / MIT
-Version: 1.0.0
+This is a reference prototype of a governance workflow. It is not legal advice
+and not a production system. Names used in the demo are placeholders.
+
+License: MIT OR Apache-2.0 (dual-licensed; see LICENSE-MIT and LICENSE-APACHE)
+Version: 0.1.0
 """
 
-from datetime import date, datetime
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta, timezone
+import argparse
 import json
+import math
 from pathlib import Path
 import sqlite3
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Set, Union
 import uuid
+
+__version__ = "0.1.0"
 
 # ---------------------------------------------------------------------
 # Configuration & Constants
 # ---------------------------------------------------------------------
 
-DB_PATH = Path("world_holobridge.db")
-EXPORT_DIR = Path("output")
-EXPORT_DIR.mkdir(exist_ok=True)
+# Defaults only. Nothing is opened or created on import: the database is
+# connected lazily on first use and the export directory is created only when
+# a report is written. Use configure() to point at another path or ":memory:".
+DB_PATH: Union[str, Path] = Path("world_holobridge.db")
+EXPORT_DIR: Path = Path("output")
 
 REQUIRED_ACCESSIBILITY: Set[str] = {
     "captions",
@@ -39,145 +51,238 @@ REQUIRED_ACCESSIBILITY: Set[str] = {
     "non_headset_alternative",
 }
 
+SEVERITIES: Set[str] = {"low", "medium", "high", "critical"}
+
+_con: Optional[sqlite3.Connection] = None
+
 
 # ---------------------------------------------------------------------
 # Database & Core Utilities
 # ---------------------------------------------------------------------
 
 def utc_now() -> str:
-    """Returns ISO-8601 UTC timestamp string."""
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    """Returns ISO-8601 UTC timestamp string (timezone-aware, 'Z' suffix)."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def init_db(path: Path = DB_PATH) -> sqlite3.Connection:
-    """Initializes the relational SQLite database with governance schema."""
-    con = sqlite3.connect(path)
+def _today() -> date:
+    """Current date used for consent expiry checks (patchable in tests)."""
+    return date.today()
+
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    details TEXT NOT NULL
+);
+
+-- Append-only audit trail: UPDATE and DELETE are rejected at the SQL level.
+CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+BEFORE UPDATE ON audit_log
+BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+BEFORE DELETE ON audit_log
+BEGIN
+    SELECT RAISE(ABORT, 'audit_log is append-only');
+END;
+
+CREATE TABLE IF NOT EXISTS contributors (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    organization TEXT,
+    indigenous_authority INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS consents (
+    id TEXT PRIMARY KEY,
+    contributor_id TEXT NOT NULL,
+    permitted_uses TEXT NOT NULL,
+    prohibited_uses TEXT NOT NULL,
+    expires_on TEXT NOT NULL,
+    withdrawn INTEGER NOT NULL DEFAULT 0,
+    withdrawn_at TEXT,
+    recorded_at TEXT NOT NULL,
+    FOREIGN KEY(contributor_id) REFERENCES contributors(id)
+);
+
+CREATE TABLE IF NOT EXISTS indigenous_materials (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    authority_id TEXT NOT NULL,
+    permissions TEXT NOT NULL,
+    external_ai_training INTEGER NOT NULL DEFAULT 0,
+    public_display INTEGER NOT NULL DEFAULT 0,
+    retention_policy TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(authority_id) REFERENCES contributors(id)
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    theme TEXT NOT NULL,
+    media_format TEXT NOT NULL,
+    human_lead TEXT NOT NULL,
+    status TEXT NOT NULL,
+    ai_role TEXT NOT NULL,
+    accessibility TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_contributors (
+    project_id TEXT NOT NULL,
+    contributor_id TEXT NOT NULL,
+    PRIMARY KEY(project_id, contributor_id),
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(contributor_id) REFERENCES contributors(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_materials (
+    project_id TEXT NOT NULL,
+    material_id TEXT NOT NULL,
+    PRIMARY KEY(project_id, material_id),
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(material_id) REFERENCES indigenous_materials(id)
+);
+
+CREATE TABLE IF NOT EXISTS contracts (
+    id TEXT PRIMARY KEY,
+    contributor_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL,
+    payment_status TEXT NOT NULL,
+    attribution TEXT NOT NULL,
+    license_terms TEXT NOT NULL,
+    revenue_share TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(contributor_id) REFERENCES contributors(id),
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS incidents (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    status TEXT NOT NULL,
+    corrective_action TEXT,
+    reported_at TEXT NOT NULL,
+    resolved_at TEXT,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+);
+"""
+
+
+def init_db(path: Union[str, Path, None] = None) -> sqlite3.Connection:
+    """Initializes the relational SQLite database with governance schema.
+
+    ``path`` may be a filesystem path or ``":memory:"``. Foreign-key
+    enforcement is switched on for the returned connection.
+    """
+    if path is None:
+        path = DB_PATH
+    con = sqlite3.connect(str(path))
     con.row_factory = sqlite3.Row
-    con.executescript("""
-    CREATE TABLE IF NOT EXISTS audit_log (
-        id TEXT PRIMARY KEY,
-        timestamp TEXT NOT NULL,
-        actor TEXT NOT NULL,
-        action TEXT NOT NULL,
-        entity_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        details TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS contributors (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL,
-        organization TEXT,
-        indigenous_authority INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS consents (
-        id TEXT PRIMARY KEY,
-        contributor_id TEXT NOT NULL,
-        permitted_uses TEXT NOT NULL,
-        prohibited_uses TEXT NOT NULL,
-        expires_on TEXT NOT NULL,
-        withdrawn INTEGER NOT NULL DEFAULT 0,
-        withdrawn_at TEXT,
-        recorded_at TEXT NOT NULL,
-        FOREIGN KEY(contributor_id) REFERENCES contributors(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS indigenous_materials (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        authority_id TEXT NOT NULL,
-        permissions TEXT NOT NULL,
-        external_ai_training INTEGER NOT NULL DEFAULT 0,
-        public_display INTEGER NOT NULL DEFAULT 0,
-        retention_policy TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(authority_id) REFERENCES contributors(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        theme TEXT NOT NULL,
-        media_format TEXT NOT NULL,
-        human_lead TEXT NOT NULL,
-        status TEXT NOT NULL,
-        ai_role TEXT NOT NULL,
-        accessibility TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS project_contributors (
-        project_id TEXT NOT NULL,
-        contributor_id TEXT NOT NULL,
-        PRIMARY KEY(project_id, contributor_id),
-        FOREIGN KEY(project_id) REFERENCES projects(id),
-        FOREIGN KEY(contributor_id) REFERENCES contributors(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS project_materials (
-        project_id TEXT NOT NULL,
-        material_id TEXT NOT NULL,
-        PRIMARY KEY(project_id, material_id),
-        FOREIGN KEY(project_id) REFERENCES projects(id),
-        FOREIGN KEY(material_id) REFERENCES indigenous_materials(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS contracts (
-        id TEXT PRIMARY KEY,
-        contributor_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        amount REAL NOT NULL,
-        currency TEXT NOT NULL,
-        payment_status TEXT NOT NULL,
-        attribution TEXT NOT NULL,
-        license_terms TEXT NOT NULL,
-        revenue_share TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(contributor_id) REFERENCES contributors(id),
-        FOREIGN KEY(project_id) REFERENCES projects(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS incidents (
-        id TEXT PRIMARY KEY,
-        project_id TEXT,
-        type TEXT NOT NULL,
-        description TEXT NOT NULL,
-        severity TEXT NOT NULL,
-        status TEXT NOT NULL,
-        corrective_action TEXT,
-        reported_at TEXT NOT NULL,
-        resolved_at TEXT
-    );
-    """)
+    con.execute("PRAGMA foreign_keys = ON")
+    con.executescript(SCHEMA)
     con.commit()
     return con
 
 
-# Initialize database connection
-con = init_db()
+def configure(
+    db_path: Union[str, Path, None] = None,
+    export_dir: Union[str, Path, None] = None,
+    connection: Optional[sqlite3.Connection] = None,
+) -> sqlite3.Connection:
+    """Selects the database (path, ``":memory:"`` or an existing connection)
+    and optionally the report export directory. Closes any previous
+    module-managed connection. Returns the active connection."""
+    global _con, DB_PATH, EXPORT_DIR
+    if export_dir is not None:
+        EXPORT_DIR = Path(export_dir)
+    if _con is not None and _con is not connection:
+        _con.close()
+    _con = None
+    if connection is not None:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.executescript(SCHEMA)
+        connection.commit()
+        _con = connection
+    else:
+        if db_path is not None:
+            DB_PATH = db_path
+        _con = init_db(DB_PATH)
+    return _con
 
 
-def audit(actor: str, action: str, entity_type: str, entity_id: str, details: Dict[str, Any]) -> str:
-    """Appends an immutable entry to the system audit trail."""
-    record_id = str(uuid.uuid4())
+def get_connection() -> sqlite3.Connection:
+    """Returns the active connection, opening ``DB_PATH`` lazily on first use."""
+    global _con
+    if _con is None:
+        _con = init_db(DB_PATH)
+    return _con
+
+
+def close_connection() -> None:
+    """Closes the module-managed connection, if any."""
+    global _con
+    if _con is not None:
+        _con.close()
+        _con = None
+
+
+def __getattr__(name: str) -> Any:
+    # Backwards compatibility: the original module exposed a global ``con``.
+    if name == "con":
+        return get_connection()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+@contextmanager
+def _transaction() -> Iterator[sqlite3.Connection]:
+    """One atomic unit of work: commits on success, rolls back on any error."""
+    con = get_connection()
     with con:
-        con.execute(
-            """INSERT INTO audit_log
-               (id, timestamp, actor, action, entity_type, entity_id, details)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (
-                record_id, utc_now(), actor, action, entity_type, entity_id,
-                json.dumps(details, ensure_ascii=False),
-            ),
-        )
+        yield con
+
+
+def _audit(con: sqlite3.Connection, actor: str, action: str, entity_type: str,
+           entity_id: str, details: Dict[str, Any]) -> str:
+    record_id = str(uuid.uuid4())
+    con.execute(
+        """INSERT INTO audit_log
+           (id, timestamp, actor, action, entity_type, entity_id, details)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            record_id, utc_now(), actor, action, entity_type, entity_id,
+            json.dumps(details, ensure_ascii=False),
+        ),
+    )
     return record_id
 
 
+def audit(actor: str, action: str, entity_type: str, entity_id: str, details: Dict[str, Any]) -> str:
+    """Appends an entry to the append-only audit trail (UPDATE/DELETE on
+    ``audit_log`` are rejected by SQLite triggers)."""
+    with _transaction() as con:
+        return _audit(con, actor, action, entity_type, entity_id, details)
+
+
 def rows(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
-    return [dict(r) for r in con.execute(query, params).fetchall()]
+    return [dict(r) for r in get_connection().execute(query, params).fetchall()]
 
 
 def row(query: str, params: tuple = ()) -> Optional[Dict[str, Any]]:
@@ -192,12 +297,19 @@ def validate_text(value: Any, label: str) -> str:
 
 
 def validate_future_date(value: str) -> str:
+    """Accepts today or a later date in ISO ``YYYY-MM-DD`` format."""
     try:
-        if date.fromisoformat(value) < date.today():
+        if not isinstance(value, str) or date.fromisoformat(value) < _today():
             raise ValueError
     except ValueError as exc:
         raise ValueError("Use a future ISO date in YYYY-MM-DD format.") from exc
     return value
+
+
+def _validate_uses(values: Any, label: str) -> List[str]:
+    if isinstance(values, str) or not isinstance(values, (list, tuple, set, frozenset)):
+        raise ValueError(f"{label} must be a list of strings.")
+    return list(dict.fromkeys(validate_text(v, label) for v in values))
 
 
 # ---------------------------------------------------------------------
@@ -206,6 +318,14 @@ def validate_future_date(value: str) -> str:
 
 class WorldHoloBridgeAdapter:
     """Central adapter instance governing regional policy and advisory parameters."""
+
+    REQUIRED_PROTOCOLS = frozenset({
+        "data_scraping",
+        "indigenous_leadership",
+        "economic_fairness",
+        "consent_withdrawal",
+        "accessibility",
+    })
 
     def __init__(self, country: str, city: str, cultural_context: str, lead_organization: str, advisory_circle: List[str]):
         self.id = str(uuid.uuid4())
@@ -218,7 +338,6 @@ class WorldHoloBridgeAdapter:
             raise ValueError("A paid advisory circle is required.")
 
         self.advisory_circle = [validate_text(a, "Advisory-circle member") for a in advisory_circle]
-        self.guardrails_active = True
         self.protocols: Dict[str, str] = {}
 
         audit("system", "initialize_adapter", "adapter", self.id, {
@@ -229,20 +348,25 @@ class WorldHoloBridgeAdapter:
             "advisory_circle": self.advisory_circle,
         })
 
+    @property
+    def guardrails_active(self) -> bool:
+        """Always True: guardrails cannot be switched off on an adapter."""
+        return True
+
+    @guardrails_active.setter
+    def guardrails_active(self, value: bool) -> None:
+        if not value:
+            raise PermissionError("Guardrails cannot be disabled.")
+
     def set_protocols(self, protocols: Dict[str, str]):
-        required = {
-            "data_scraping",
-            "indigenous_leadership",
-            "economic_fairness",
-            "consent_withdrawal",
-            "accessibility",
-        }
-        missing = required - set(protocols)
+        missing = self.REQUIRED_PROTOCOLS - set(protocols)
         if missing:
             raise ValueError(f"Missing required protocols: {sorted(missing)}")
 
-        self.protocols = protocols
-        audit("governance", "set_protocols", "adapter", self.id, protocols)
+        cleaned = {validate_text(k, "Protocol name"): validate_text(v, f"Protocol '{k}'")
+                   for k, v in protocols.items()}
+        self.protocols = cleaned
+        audit("governance", "set_protocols", "adapter", self.id, cleaned)
 
     def disable_guardrails(self):
         raise PermissionError("Guardrails cannot be disabled.")
@@ -253,23 +377,21 @@ class WorldHoloBridgeAdapter:
 # ---------------------------------------------------------------------
 
 def add_contributor(name: str, role: str, organization: Optional[str] = None, indigenous_authority: bool = False) -> str:
+    name = validate_text(name, "Name")
+    role = validate_text(role, "Role")
     contributor_id = str(uuid.uuid4())
-    with con:
+    with _transaction() as con:
         con.execute(
             """INSERT INTO contributors
                (id, name, role, organization, indigenous_authority, created_at)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                contributor_id, validate_text(name, "Name"), validate_text(role, "Role"),
-                organization, int(indigenous_authority), utc_now(),
-            ),
+            (contributor_id, name, role, organization, int(bool(indigenous_authority)), utc_now()),
         )
-
-    audit("administrator", "add_contributor", "contributor", contributor_id, {
-        "name": name,
-        "role": role,
-        "indigenous_authority": indigenous_authority,
-    })
+        _audit(con, "administrator", "add_contributor", "contributor", contributor_id, {
+            "name": name,
+            "role": role,
+            "indigenous_authority": bool(indigenous_authority),
+        })
     return contributor_id
 
 
@@ -280,57 +402,67 @@ def register_consent(contributor_id: str, permitted_uses: List[str], prohibited_
     if not permitted_uses:
         raise ValueError("At least one permitted use is required.")
 
+    permitted = _validate_uses(permitted_uses, "Permitted use")
+    prohibited = _validate_uses(prohibited_uses, "Prohibited use")
+    overlap = set(permitted) & set(prohibited)
+    if overlap:
+        raise ValueError(f"Uses cannot be both permitted and prohibited: {sorted(overlap)}")
+    expires_on = validate_future_date(expires_on)
+
     consent_id = str(uuid.uuid4())
-    with con:
+    with _transaction() as con:
         con.execute(
             """INSERT INTO consents
                (id, contributor_id, permitted_uses, prohibited_uses,
                 expires_on, withdrawn, recorded_at)
                VALUES (?, ?, ?, ?, ?, 0, ?)""",
-            (
-                consent_id, contributor_id, json.dumps(permitted_uses),
-                json.dumps(prohibited_uses), validate_future_date(expires_on), utc_now(),
-            ),
+            (consent_id, contributor_id, json.dumps(permitted), json.dumps(prohibited),
+             expires_on, utc_now()),
         )
-
-    audit("administrator", "register_consent", "consent", consent_id, {
-        "contributor_id": contributor_id,
-        "permitted_uses": permitted_uses,
-        "prohibited_uses": prohibited_uses,
-        "expires_on": expires_on,
-    })
+        _audit(con, "administrator", "register_consent", "consent", consent_id, {
+            "contributor_id": contributor_id,
+            "permitted_uses": permitted,
+            "prohibited_uses": prohibited,
+            "expires_on": expires_on,
+        })
     return consent_id
 
 
 def withdraw_consent(consent_id: str) -> bool:
-    if not row("SELECT id FROM consents WHERE id = ?", (consent_id,)):
+    """Withdraws a consent. Returns False (no change, no new audit entry)
+    if it was already withdrawn."""
+    record = row("SELECT id, withdrawn FROM consents WHERE id = ?", (consent_id,))
+    if not record:
         raise ValueError("Consent record does not exist.")
+    if record["withdrawn"]:
+        return False
 
-    with con:
+    with _transaction() as con:
         con.execute(
             "UPDATE consents SET withdrawn = 1, withdrawn_at = ? WHERE id = ?",
             (utc_now(), consent_id),
         )
-
-    audit("contributor_or_administrator", "withdraw_consent", "consent",
-          consent_id, {"withdrawn": True})
+        _audit(con, "contributor_or_administrator", "withdraw_consent", "consent",
+               consent_id, {"withdrawn": True})
     return True
 
 
 def consent_allows(contributor_id: str, use: str) -> bool:
+    """True only if at least one active (not withdrawn, not expired) consent
+    permits ``use`` and no active consent prohibits it. A prohibition in any
+    active record wins over permissions in other records."""
     records = rows(
         """SELECT * FROM consents
            WHERE contributor_id = ? AND withdrawn = 0 AND expires_on >= ?""",
-        (contributor_id, date.today().isoformat()),
+        (contributor_id, _today().isoformat()),
     )
+    permitted_somewhere = False
     for record in records:
-        permitted = json.loads(record["permitted_uses"])
-        prohibited = json.loads(record["prohibited_uses"])
-        if use in prohibited:
+        if use in json.loads(record["prohibited_uses"]):
             return False
-        if use in permitted:
-            return True
-    return False
+        if use in json.loads(record["permitted_uses"]):
+            permitted_somewhere = True
+    return permitted_somewhere
 
 
 def register_indigenous_material(adapter: WorldHoloBridgeAdapter, title: str, authority_id: str, permissions: List[str], retention_policy: str, public_display: bool = False) -> str:
@@ -344,33 +476,34 @@ def register_indigenous_material(adapter: WorldHoloBridgeAdapter, title: str, au
             "Indigenous material requires a registered Indigenous governance authority."
         )
 
+    title = validate_text(title, "Title")
+    retention_policy = validate_text(retention_policy, "Retention policy")
+    permissions = _validate_uses(permissions, "Permission")
+
     material_id = str(uuid.uuid4())
-    with con:
+    with _transaction() as con:
         con.execute(
             """INSERT INTO indigenous_materials
                (id, title, authority_id, permissions, external_ai_training,
                 public_display, retention_policy, created_at)
                VALUES (?, ?, ?, ?, 0, ?, ?, ?)""",
-            (
-                material_id, validate_text(title, "Title"), authority_id,
-                json.dumps(permissions), int(public_display),
-                validate_text(retention_policy, "Retention policy"), utc_now(),
-            ),
+            (material_id, title, authority_id, json.dumps(permissions),
+             int(bool(public_display)), retention_policy, utc_now()),
         )
-
-    audit(authority["name"], "register_indigenous_material",
-          "indigenous_material", material_id, {
-              "title": title,
-              "permissions": permissions,
-              "public_display": public_display,
-              "external_ai_training": False,
-              "retention_policy": retention_policy,
-          })
+        _audit(con, authority["name"], "register_indigenous_material",
+               "indigenous_material", material_id, {
+                   "title": title,
+                   "permissions": permissions,
+                   "public_display": bool(public_display),
+                   "external_ai_training": False,
+                   "retention_policy": retention_policy,
+               })
     return material_id
 
 
 def create_contract(contributor_id: str, project_id: str, role: str, amount: float, currency: str = "CAD", attribution: str = "Named contributor", license_terms: str = "To be agreed before production", revenue_share: str = "To be agreed before production") -> str:
-    if amount <= 0:
+    if (isinstance(amount, bool) or not isinstance(amount, (int, float))
+            or not math.isfinite(amount) or amount <= 0):
         raise ValueError("Compensation must be greater than zero.")
 
     if not row("SELECT id FROM contributors WHERE id = ?", (contributor_id,)):
@@ -379,49 +512,58 @@ def create_contract(contributor_id: str, project_id: str, role: str, amount: flo
     if not row("SELECT id FROM projects WHERE id = ?", (project_id,)):
         raise ValueError("Project does not exist.")
 
+    role = validate_text(role, "Role")
+    currency = validate_text(currency, "Currency")
+    attribution = validate_text(attribution, "Attribution")
+    license_terms = validate_text(license_terms, "License terms")
+    revenue_share = validate_text(revenue_share, "Revenue share")
+
     contract_id = str(uuid.uuid4())
-    with con:
+    with _transaction() as con:
         con.execute(
             """INSERT INTO contracts
                (id, contributor_id, project_id, role, amount, currency,
                 payment_status, attribution, license_terms, revenue_share, created_at)
                VALUES (?, ?, ?, ?, ?, ?, 'agreed_not_paid', ?, ?, ?, ?)""",
-            (
-                contract_id, contributor_id, project_id, validate_text(role, "Role"),
-                float(amount), currency, attribution, license_terms,
-                revenue_share, utc_now(),
-            ),
+            (contract_id, contributor_id, project_id, role, float(amount), currency,
+             attribution, license_terms, revenue_share, utc_now()),
         )
-
-    audit("administrator", "create_contract", "contract", contract_id, {
-        "contributor_id": contributor_id,
-        "project_id": project_id,
-        "amount": amount,
-        "currency": currency,
-        "attribution": attribution,
-        "license_terms": license_terms,
-        "revenue_share": revenue_share,
-    })
+        _audit(con, "administrator", "create_contract", "contract", contract_id, {
+            "contributor_id": contributor_id,
+            "project_id": project_id,
+            "amount": float(amount),
+            "currency": currency,
+            "attribution": attribution,
+            "license_terms": license_terms,
+            "revenue_share": revenue_share,
+        })
     return contract_id
 
 
 def mark_paid(contract_id: str, payment_reference: str) -> bool:
-    if not row("SELECT id FROM contracts WHERE id = ?", (contract_id,)):
+    """Marks a contract paid. Returns False (no change, no new audit entry)
+    if it was already paid."""
+    contract = row("SELECT id, payment_status FROM contracts WHERE id = ?", (contract_id,))
+    if not contract:
         raise ValueError("Contract does not exist.")
+    payment_reference = validate_text(payment_reference, "Payment reference")
+    if contract["payment_status"] == "paid":
+        return False
 
-    with con:
+    with _transaction() as con:
         con.execute(
             "UPDATE contracts SET payment_status = 'paid' WHERE id = ?",
             (contract_id,),
         )
-
-    audit("finance", "mark_paid", "contract", contract_id, {
-        "payment_reference": payment_reference
-    })
+        _audit(con, "finance", "mark_paid", "contract", contract_id, {
+            "payment_reference": payment_reference
+        })
     return True
 
 
-def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: str, human_lead: str, contributor_ids: List[str], accessibility: Set[str], indigenous_material_ids: Optional[List[str]] = None) -> str:
+def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: str, human_lead: str, contributor_ids: List[str], accessibility: Iterable[str], indigenous_material_ids: Optional[List[str]] = None) -> str:
+    """Validates every gate first, then writes the project, its contributors,
+    its materials and the audit entry in a single transaction."""
     if not adapter.guardrails_active:
         raise PermissionError("Guardrails must remain active.")
 
@@ -431,8 +573,11 @@ def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: st
 
     if not contributor_ids:
         raise ValueError("At least one contributor is required.")
+    contributor_ids = list(dict.fromkeys(contributor_ids))
+    material_ids = list(dict.fromkeys(indigenous_material_ids or []))
 
-    missing = REQUIRED_ACCESSIBILITY - set(accessibility)
+    accessibility = set(accessibility)
+    missing = REQUIRED_ACCESSIBILITY - accessibility
     if missing:
         raise ValueError(f"Missing required accessibility features: {sorted(missing)}")
 
@@ -445,8 +590,19 @@ def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: st
             "All contributors need active consent for community storytelling."
         )
 
+    for material_id in material_ids:
+        material = row(
+            "SELECT * FROM indigenous_materials WHERE id = ?", (material_id,)
+        )
+        if not material:
+            raise ValueError("Indigenous material does not exist.")
+        if not material["public_display"]:
+            raise PermissionError(
+                "Material cannot be publicly displayed without permission."
+            )
+
     project_id = str(uuid.uuid4())
-    with con:
+    with _transaction() as con:
         con.execute(
             """INSERT INTO projects
                (id, theme, media_format, human_lead, status, ai_role,
@@ -463,37 +619,33 @@ def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: st
                 "INSERT INTO project_contributors VALUES (?, ?)",
                 (project_id, cid),
             )
-
-    for material_id in indigenous_material_ids or []:
-        material = row(
-            "SELECT * FROM indigenous_materials WHERE id = ?", (material_id,)
-        )
-        if not material:
-            raise ValueError("Indigenous material does not exist.")
-        if not material["public_display"]:
-            raise PermissionError(
-                "Material cannot be publicly displayed without permission."
-            )
-        with con:
+        for material_id in material_ids:
             con.execute(
                 "INSERT INTO project_materials VALUES (?, ?)",
                 (project_id, material_id),
             )
-
-    audit("project_lead", "create_project", "project", project_id, {
-        "theme": theme,
-        "media_format": media_format,
-        "human_lead": human_lead,
-        "contributors": contributor_ids,
-        "indigenous_materials": indigenous_material_ids or [],
-        "accessibility": sorted(accessibility),
-    })
+        _audit(con, "project_lead", "create_project", "project", project_id, {
+            "theme": theme,
+            "media_format": media_format,
+            "human_lead": human_lead,
+            "contributors": contributor_ids,
+            "indigenous_materials": material_ids,
+            "accessibility": sorted(accessibility),
+        })
     return project_id
 
 
 def publish_project(project_id: str, approved_by: str) -> bool:
-    if not row("SELECT id FROM projects WHERE id = ?", (project_id,)):
+    """Publishes a project. Blocks while any contract is unpaid or while any
+    project contributor lacks active community-storytelling consent (e.g. it
+    was withdrawn or expired after the project was created). Returns False if
+    the project is already published."""
+    project = row("SELECT id, status FROM projects WHERE id = ?", (project_id,))
+    if not project:
         raise ValueError("Project does not exist.")
+    approved_by = validate_text(approved_by, "Approver")
+    if project["status"] == "published":
+        return False
 
     unpaid = rows(
         """SELECT id FROM contracts
@@ -505,14 +657,23 @@ def publish_project(project_id: str, approved_by: str) -> bool:
             "Project cannot be published while contributor payments are outstanding."
         )
 
-    with con:
+    contributor_ids = [r["contributor_id"] for r in rows(
+        "SELECT contributor_id FROM project_contributors WHERE project_id = ?",
+        (project_id,),
+    )]
+    if any(not consent_allows(cid, "community_storytelling") for cid in contributor_ids):
+        raise PermissionError(
+            "Project cannot be published: a contributor no longer has active "
+            "consent for community storytelling."
+        )
+
+    with _transaction() as con:
         con.execute(
             "UPDATE projects SET status = 'published' WHERE id = ?",
             (project_id,),
         )
-
-    audit(approved_by, "publish_project", "project", project_id,
-          {"status": "published"})
+        _audit(con, approved_by, "publish_project", "project", project_id,
+               {"status": "published"})
     return True
 
 
@@ -548,53 +709,58 @@ def assess_ai_use(adapter: WorldHoloBridgeAdapter, task: str, domain: str, propo
 
 
 def report_incident(project_id: Optional[str], incident_type: str, description: str, severity: str) -> str:
-    if severity not in {"low", "medium", "high", "critical"}:
+    if severity not in SEVERITIES:
         raise ValueError("Severity must be low, medium, high, or critical.")
+    if project_id is not None and not row("SELECT id FROM projects WHERE id = ?", (project_id,)):
+        raise ValueError("Project does not exist.")
+    incident_type = validate_text(incident_type, "Incident type")
+    description = validate_text(description, "Description")
 
     incident_id = str(uuid.uuid4())
-    with con:
+    with _transaction() as con:
         con.execute(
             """INSERT INTO incidents
                (id, project_id, type, description, severity, status, reported_at)
                VALUES (?, ?, ?, ?, ?, 'open', ?)""",
-            (
-                incident_id, project_id, validate_text(incident_type, "Incident type"),
-                validate_text(description, "Description"), severity, utc_now(),
-            ),
+            (incident_id, project_id, incident_type, description, severity, utc_now()),
         )
-
-    audit("participant_or_staff", "report_incident", "incident", incident_id, {
-        "project_id": project_id,
-        "type": incident_type,
-        "severity": severity,
-    })
+        _audit(con, "participant_or_staff", "report_incident", "incident", incident_id, {
+            "project_id": project_id,
+            "type": incident_type,
+            "severity": severity,
+        })
     return incident_id
 
 
 def resolve_incident(incident_id: str, corrective_action: str) -> bool:
-    if not row("SELECT id FROM incidents WHERE id = ?", (incident_id,)):
+    """Resolves an incident. Returns False (no change) if already resolved."""
+    incident = row("SELECT id, status FROM incidents WHERE id = ?", (incident_id,))
+    if not incident:
         raise ValueError("Incident does not exist.")
+    corrective_action = validate_text(corrective_action, "Corrective action")
+    if incident["status"] == "resolved":
+        return False
 
-    with con:
+    with _transaction() as con:
         con.execute(
             """UPDATE incidents
                SET status = 'resolved', corrective_action = ?, resolved_at = ?
                WHERE id = ?""",
-            (validate_text(corrective_action, "Corrective action"), utc_now(), incident_id),
+            (corrective_action, utc_now(), incident_id),
         )
-
-    audit("administrator", "resolve_incident", "incident", incident_id, {
-        "corrective_action": corrective_action
-    })
+        _audit(con, "administrator", "resolve_incident", "incident", incident_id, {
+            "corrective_action": corrective_action
+        })
     return True
 
 
-def generate_impact_report(adapter: WorldHoloBridgeAdapter) -> Dict[str, Any]:
+def generate_impact_report(adapter: WorldHoloBridgeAdapter, export_dir: Union[str, Path, None] = None) -> Dict[str, Any]:
     projects = rows("SELECT * FROM projects")
     contributors = rows("SELECT * FROM contributors")
     contracts = rows("SELECT * FROM contracts")
     consents = rows("SELECT * FROM consents")
     incidents = rows("SELECT * FROM incidents")
+    today = _today().isoformat()
 
     paid = [c for c in contracts if c["payment_status"] == "paid"]
     outstanding = [c for c in contracts if c["payment_status"] != "paid"]
@@ -613,7 +779,10 @@ def generate_impact_report(adapter: WorldHoloBridgeAdapter) -> Dict[str, Any]:
         "governance": {
             "advisory_circle_size": len(adapter.advisory_circle),
             "contributors": len(contributors),
-            "active_consents": len([c for c in consents if not c["withdrawn"]]),
+            "active_consents": len([c for c in consents
+                                    if not c["withdrawn"] and c["expires_on"] >= today]),
+            "expired_consents": len([c for c in consents
+                                     if not c["withdrawn"] and c["expires_on"] < today]),
             "withdrawn_consents": len([c for c in consents if c["withdrawn"]]),
             "guardrails_active": adapter.guardrails_active,
         },
@@ -636,7 +805,7 @@ def generate_impact_report(adapter: WorldHoloBridgeAdapter) -> Dict[str, Any]:
                     p for p in projects
                     if feature in json.loads(p["accessibility"])
                 ])
-                for feature in REQUIRED_ACCESSIBILITY
+                for feature in sorted(REQUIRED_ACCESSIBILITY)
             },
         },
         "rights_and_safety": {
@@ -651,7 +820,9 @@ def generate_impact_report(adapter: WorldHoloBridgeAdapter) -> Dict[str, Any]:
         ],
     }
 
-    path = EXPORT_DIR / f"holobridge_impact_report_{date.today()}.json"
+    out_dir = Path(export_dir) if export_dir is not None else EXPORT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"holobridge_impact_report_{_today().isoformat()}.json"
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     audit("system", "generate_impact_report", "adapter", adapter.id,
@@ -663,8 +834,11 @@ def generate_impact_report(adapter: WorldHoloBridgeAdapter) -> Dict[str, Any]:
 # Reproducible Test & Deployment Verification
 # ---------------------------------------------------------------------
 
-if __name__ == "__main__":
-    print("Executing World-HoloBridge Governance Pipeline Test Run...")
+def run_demo() -> Dict[str, Any]:
+    """End-to-end demo pipeline on the active database. All names are
+    placeholders; no real person, organization or community is represented."""
+    # Consent expiry is one year from today so the demo does not go stale.
+    expires_on = (_today() + timedelta(days=365)).isoformat()
 
     # 1. Initialize Adapter
     adapter = WorldHoloBridgeAdapter(
@@ -696,18 +870,20 @@ if __name__ == "__main__":
     accessibility_id = add_contributor("Accessibility Advocate A", "Accessibility reviewer", "Community disability org")
     wolastoqey_authority_id = add_contributor("Wolastoqey Governance Representative", "Governance authority", "Wolastoqey community", indigenous_authority=True)
 
-    artist_consent = register_consent(
+    register_consent(
         artist_id,
         permitted_uses=["community_storytelling", "public_display", "project_evaluation"],
         prohibited_uses=["external_ai_training", "commercial_resale_without_agreement"],
-        expires_on="2027-10-16",
+        expires_on=expires_on,
     )
 
-    accessibility_consent = register_consent(
+    # Demo fix: the original script omitted "community_storytelling" here, so
+    # its own create_project gate (correctly) raised PermissionError.
+    register_consent(
         accessibility_id,
-        permitted_uses=["accessibility_review", "project_evaluation"],
+        permitted_uses=["community_storytelling", "accessibility_review", "project_evaluation"],
         prohibited_uses=["external_ai_training"],
-        expires_on="2027-10-16",
+        expires_on=expires_on,
     )
 
     # 3. Register Indigenous Material
@@ -764,6 +940,27 @@ if __name__ == "__main__":
     publish_project(project_id, approved_by="Community advisory circle")
 
     # 6. Export Impact Report
-    report = generate_impact_report(adapter)
-    print("Pipeline run completed successfully.")
-    print(f"Exported Impact Report: {json.dumps(report, indent=2, ensure_ascii=False)}")
+    return generate_impact_report(adapter)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Run the World-HoloBridge demo pipeline.")
+    parser.add_argument("--db", default=str(DB_PATH),
+                        help="SQLite database path, or ':memory:' (default: %(default)s)")
+    parser.add_argument("--output-dir", default=str(EXPORT_DIR),
+                        help="Directory for the exported impact report (default: %(default)s)")
+    args = parser.parse_args(argv)
+
+    configure(db_path=args.db, export_dir=args.output_dir)
+    try:
+        print("Executing World-HoloBridge Governance Pipeline Test Run...")
+        report = run_demo()
+        print("Pipeline run completed successfully.")
+        print(f"Exported Impact Report: {json.dumps(report, indent=2, ensure_ascii=False)}")
+    finally:
+        close_connection()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
