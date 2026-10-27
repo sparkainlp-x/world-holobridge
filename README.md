@@ -57,6 +57,10 @@ local statistics, population figures or organization names and suggests no fee
 amounts. It notes that laws on consent, privacy and Indigenous data vary (for
 example OCAP® in Canada and the CARE Principles) and it is not legal advice.
 
+## Use case: urban heat resilience
+
+[docs/heat-resilience-use-case.md](docs/heat-resilience-use-case.md) describes how these gates could support a community heat-communication project built around holographic LED-fan displays, and compares each gate with what the code actually does. A holographic fan does not cool the air, and no evidence was found that it reduces temperatures or heat-related illness; the document treats it as a communication layer to be tested against ordinary signage. The heat-specific extensions it lists (alert feeds, two-person approval, expiry, security) are **not implemented** here. No municipal partner or deployment is claimed.
+
 ## What it checks
 
 | Gate | Behaviour |
