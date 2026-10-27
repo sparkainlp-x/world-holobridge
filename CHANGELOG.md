@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `docs/heat-resilience-use-case.md`: a documented use case on holographic display fans as a heat-risk communication layer. It states that a holographic fan does not cool air and that no evidence was found for temperature or mortality effects, maps each governance gate to what the code does and does not do for this use, lists municipal extensions that are **not implemented**, adds a photosensitivity rule (no flashing; WCAG 2.2 SC 2.3.1), an evidence-tag legend, a pilot design that compares against ordinary signage, and a numbered reference list with link status. Documentation only: no code, version, tag or release change.
+
 ## 0.2.0 — 2026-10-16
 
 First release. Version 0.1.0 (below) was prepared and pushed to the
