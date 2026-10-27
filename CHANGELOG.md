@@ -2,7 +2,40 @@
 
 ## Unreleased
 
+No version bump, tag, release or Zenodo change is part of these entries.
+
+### Behaviour changes
+
+- **BREAKING (narrow): an open `high` or `critical` incident linked to a project now blocks `publish_project` until it is resolved.** In 0.2.0 an open incident never blocked publication. Projects with no such incident are unaffected; the plan template's incident gate text (English and French) now says so. Open lower-severity incidents linked to the project, and open high/critical incidents that name no project, are warnings (written to the audit entry), and block only with `strict=True`.
+- **BREAKING (narrow): `publish_project` re-checks, and can now refuse on, three more conditions:** a contributor declared as paid (new `paid_contributor_ids`) with no contract; a recorded accessibility evidence reference that no longer verifies (or a declaration missing a required feature); attached material whose public-display permission was withdrawn. None of these can occur for a project created without the new options, except through direct database edits, so existing callers see no change.
+- `publish_project(project_id, approved_by, strict=False)` raises `PublicationBlocked` (a subclass of `PermissionError`; existing `except PermissionError` code and the existing message text still work). Its audit entry now also records `strict` and the list of `warnings`.
+- Not breaking: a project with no contracts and no declared paid contributors still publishes by default, but now carries a `no_contracts_recorded` warning in the audit entry and in `publication_report()`. `strict=True` refuses it.
+- Not breaking: `indigenous_materials.external_ai_training` is now constrained to 0 by SQLite triggers (insert and update). Databases created by 0.2.0 gain the triggers and two new tables when they are next opened; existing rows are not rewritten.
+
 ### Added
+
+- `publication_report(project_id, strict=False)`: runs every publication gate (payment, consent, incidents, accessibility, public display) without changing anything and returns each check as pass/warn/fail with a code and message.
+- `create_project(..., paid_contributor_ids=None, accessibility_evidence=None, evidence_base_dir=None)`: declare who is expected to be paid; record a reference for each accessibility feature. `verify_accessibility_reference()` checks `file:` (non-empty regular file; text must be UTF-8 and not blank; `.vtt`/`.srt` need a cue; SHA-256 recorded), `http(s)://` (syntax only, **not fetched**) and `text:` (declared only, not verifiable).
+- `withdraw_public_display(material_id)`, `ai_training_allowed(material_id)`, and `assess_ai_use(..., material_ids=...)`, which checks each material's AI-training flag.
+- `BLOCKING_INCIDENT_SEVERITIES`, `PublicationBlocked`.
+- New tables `project_paid_contributors` and `accessibility_evidence`.
+- `docs/pilot-protocol.md`: a pre-registration-style protocol for evaluating the heat-resilience idea (hypotheses, outcomes and instruments, arms A/B/C, sample-size method with no invented numbers, safety stopping rules, independent evaluator, data plan, fixed analysis plan, deviations log, negative-result commitment). It is a draft: nothing has been registered, reviewed or run.
+- `docs/evidence-register.md`: each claim in the README and the use-case document with an evidence tag and where it is checked. `tests/test_claims.py` checks that it cites only existing tests.
+- Tests: 58 new Python tests (104 to 162, in `tests/test_hardening.py` and `tests/test_claims.py`) and 2 new Node tests (7 to 9).
+
+### Changed (documentation corrected to match the code)
+
+- README "What it checks" rewritten so every control is described as implemented: consent checks one use, `community_storytelling`; public display applies to registered Indigenous material only because that is the only material type; accessibility is a declaration unless evidence references are given; the payment gate depends on contracts existing or being declared; `assess_ai_use` is advisory; the audit log blocks SQL edits only.
+- README: the plan page makes one same-origin request (`plan_template.json`) and is served by a web host; the earlier wording "no server, no external requests" in the 0.2.0 README and changelog was too broad. The statement is now backed by a Node test.
+- Use-case document: control table updated to say where `main` differs from 0.2.0; pointer to the pilot protocol and evidence register.
+- `run_plan_pipeline` declares its placeholder contributors as paid so the new gate is exercised. The pipeline's output strings are otherwise unchanged except for the accessibility line, which now says only the feature names are declared in that placeholder run.
+
+### Not changed (known, left for the author)
+
+- `.zenodo.json` and the published Zenodo record for 0.2.0 still say "non-public material cannot be attached to a project" and list the licence as MIT only. Fixing them needs a metadata edit or a new version.
+- There is no generic (non-Indigenous) material type, no log-in or role check on any function, and no alert, display or hardware code.
+
+### Added (earlier, now merged)
 
 - `docs/heat-resilience-use-case.md`: a documented use case on holographic display fans as a heat-risk communication layer. It states that a holographic fan does not cool air and that no evidence was found for temperature or mortality effects, maps each governance gate to what the code does and does not do for this use, lists municipal extensions that are **not implemented**, adds a photosensitivity rule (no flashing; WCAG 2.2 SC 2.3.1), an evidence-tag legend, a pilot design that compares against ordinary signage, and a numbered reference list with link status. Documentation only: no code, version, tag or release change.
 

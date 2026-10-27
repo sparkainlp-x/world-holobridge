@@ -247,7 +247,7 @@
             }
           ],
           "note": null,
-          "gate": "report_incident and resolve_incident."
+          "gate": "report_incident and resolve_incident; publish_project is blocked while a high or critical incident linked to the project is open."
         },
         {
           "id": "ai_use",
@@ -600,7 +600,7 @@
             }
           ],
           "note": null,
-          "gate": "report_incident et resolve_incident."
+          "gate": "report_incident et resolve_incident; publish_project est bloqué tant qu'un incident de gravité high ou critical lié au projet est ouvert."
         },
         {
           "id": "ai_use",
