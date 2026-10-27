@@ -77,3 +77,25 @@ test('UI strings exist in every language with the same keys', () => {
   const keys = Object.keys(template.ui.en).sort();
   for (const lang of template.languages) assert.deepEqual(Object.keys(template.ui[lang]).sort(), keys);
 });
+
+test('page makes exactly one request (the same-origin template) and uses no storage or cookie APIs', () => {
+  const sources = ['site/plan.js', 'site/app.js'].map((f) =>
+    fs.readFileSync(path.join(root, f), 'utf8').replace(/\/\/.*$/gm, ''));
+  const all = sources.join('\n');
+  const fetches = all.match(/\bfetch\(/g) || [];
+  assert.equal(fetches.length, 1, 'expected exactly one fetch call');
+  assert.match(all, /fetch\('plan_template\.json'/);
+  for (const api of ['XMLHttpRequest', 'WebSocket', 'sendBeacon', 'localStorage', 'sessionStorage', 'indexedDB', 'document.cookie']) {
+    assert.ok(!all.includes(api), `site scripts use ${api}`);
+  }
+  const html = fs.readFileSync(path.join(root, 'site/index.html'), 'utf8');
+  assert.match(html, /connect-src 'self'/);
+});
+
+test('incident section names the publication block for high and critical incidents (EN and FR)', () => {
+  for (const lang of Object.keys(template.content)) {
+    const section = template.content[lang].sections.find((s) => s.id === 'incidents');
+    assert.match(section.gate, /publish_project/);
+    assert.match(section.gate, /critical/);
+  }
+});

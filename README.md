@@ -27,8 +27,12 @@ assessment, a five-phase timeline, evaluation and the impact report. Each
 section names the check in the code that enforces it. Download it as Markdown
 or JSON, or print it. English and French.
 
-The page runs entirely in the browser: no server, no external requests, no
-storage, no analytics. The same plan comes from Python (install with
+The plan is built in your browser from a template file. The page makes one
+same-origin request, for `plan_template.json`, and no other request; what you
+type is not sent anywhere (its Content-Security-Policy allows connections to
+its own origin only). It uses no storage and no analytics (nothing in `site/`
+calls the storage or cookie APIs). It is still served by a web host (GitHub
+Pages), which sees ordinary page requests. The same plan comes from Python (install with
 `pip install .` from a checkout to get the `world-holobridge` command, or use
 `python world_holobridge.py plan ...`):
 
@@ -59,25 +63,35 @@ example OCAP® in Canada and the CARE Principles) and it is not legal advice.
 
 ## Use case: urban heat resilience
 
-[docs/heat-resilience-use-case.md](docs/heat-resilience-use-case.md) describes how these gates could support a community heat-communication project built around holographic LED-fan displays, and compares each gate with what the code actually does. A holographic fan does not cool the air, and no evidence was found that it reduces temperatures or heat-related illness; the document treats it as a communication layer to be tested against ordinary signage. The heat-specific extensions it lists (alert feeds, two-person approval, expiry, security) are **not implemented** here. No municipal partner or deployment is claimed.
+[docs/heat-resilience-use-case.md](docs/heat-resilience-use-case.md) describes how these gates could support a community heat-communication project built around holographic LED-fan displays, and compares each gate with what the code actually does. A holographic fan does not cool the air, and no evidence was found that it reduces temperatures or heat-related illness; the document treats it as a communication layer to be tested against ordinary signage. The heat-specific extensions it lists (alert feeds, two-person approval, expiry, security) are **not implemented** here. No municipal partner or deployment is claimed. [docs/pilot-protocol.md](docs/pilot-protocol.md) is a pre-registration-style protocol for evaluating that idea (nothing has been run), and [docs/evidence-register.md](docs/evidence-register.md) lists each claim in the repository docs with an evidence tag and where it is checked.
 
 ## What it checks
 
+Each row says exactly what the code does today (the Unreleased changes on
+`main` are included and marked; release 0.2.0 did less, see
+[CHANGELOG.md](CHANGELOG.md)). Nothing here is verified outside the repository's
+own tests, and none of it identifies a person: the prototype has no log-in, so
+it records the actor names it is given but cannot check who is calling.
+
 | Gate | Behaviour |
 | --- | --- |
-| Consent | A contributor must hold an active consent (not withdrawn, not expired) that permits `community_storytelling`. A use prohibited in any active record is refused, even if another record permits it. |
+| Consent | A contributor must hold an active consent (not withdrawn, not expired) that permits the single use `community_storytelling` before being added to a project and again at publication. A use prohibited in any active record is refused, even if another record permits it. |
 | Consent lapse | Publishing is refused if a contributor's consent was withdrawn or expired after the project was created. |
-| Indigenous authority | Indigenous material can only be registered by a contributor flagged as an Indigenous governance authority. Material is never marked for external AI training. |
-| Public display | Material without public-display permission cannot be attached to a project. |
-| Accessibility | Every project must include captions, a transcript, a plain-language summary and a non-headset alternative. |
-| Fair payment | Compensation must be greater than zero; a project cannot be published while any of its contracts is unpaid. |
+| Indigenous authority | Indigenous material can only be registered by a contributor flagged as an Indigenous governance authority. The material's `external_ai_training` flag is stored as 0 and SQLite triggers reject any attempt to set it to 1 (*Unreleased*). `ai_training_allowed(material_id)` reads it. Nothing in this repository trains a model, so a downstream tool has to call that function and honour the answer. |
+| Public display | Registered material without public-display permission cannot be attached to a project. At publication the permission is checked again for every attached material, and `withdraw_public_display(material_id)` revokes it (*Unreleased*). The only material type the code models is Indigenous material; there is no generic material type, so non-Indigenous material (for example a non-public interview) is not checked because it is not represented. |
+| Accessibility | Every project must declare captions, a transcript, a plain-language summary and a non-headset alternative; the declaration is re-checked at publication. Optionally (*Unreleased*), `create_project(..., accessibility_evidence={...})` takes a reference for each feature: `file:<path>` must be a non-empty regular file (text files must be UTF-8 and not blank; `.vtt`/`.srt` must contain a cue), `http(s)://` is checked for syntax only and is **not fetched**, and `text:<description>` is recorded as declared, not verifiable. File references are verified again at publication. Without evidence references only the feature names are checked, and publication reports a warning for each. The code cannot judge whether captions are accurate or the alternative is usable. |
+| Fair payment | Compensation must be greater than zero. A project cannot be published while any of its contracts is unpaid. A project can declare contributors as paid with `paid_contributor_ids` (*Unreleased*); publication is refused while any of them has no contract on the project. A project with no contracts and no declared paid contributors can still be published by default, but the result carries a `no_contracts_recorded` warning that is written into the audit entry. |
+| Incidents | Incidents (low/medium/high/critical, free-text type) can be reported and resolved with a corrective action. An open `high` or `critical` incident linked to a project blocks that project's publication until resolved (*Unreleased*; **a behaviour change**). Open lower-severity incidents linked to the project, and open high/critical incidents that name no project, are reported as warnings. |
+| Strict publication | `publish_project(..., strict=True)` and `publication_report(..., strict=True)` (*Unreleased*) turn these warnings into blockers: no contracts recorded, a contributor without a contract, missing accessibility evidence, any open linked incident, and an open unlinked high/critical incident. Default is `strict=False`. |
+| Publication report | `publication_report(project_id)` runs every publication gate without changing anything and returns each check as `pass`, `warn` or `fail` with a code and message. `publish_project` raises `PublicationBlocked` (a `PermissionError`) carrying that report. |
 | Guardrails | `disable_guardrails()` and `adapter.guardrails_active = False` both raise `PermissionError`. |
-| Incidents | Incidents (low/medium/high/critical) can be reported and resolved with a corrective action. |
 | Audit log | Every action writes an entry in the same transaction. SQLite triggers reject `UPDATE`/`DELETE` on `audit_log` (this blocks edits through SQL; it does not make the file tamper-proof). |
-| Impact report | JSON summary of governance, projects, payments, accessibility coverage and incidents, with stated limitations. |
+| Impact report | JSON summary of governance, projects, payments, accessibility coverage (declared features, not evidence) and incidents, with stated limitations. |
 
-`assess_ai_use()` records a simple assessment that marks sensitive-data or
-Indigenous-material requests as blocked pending governance.
+`assess_ai_use()` records and returns an assessment that marks sensitive-data or
+Indigenous-material requests as `blocked_pending_governance`. It is **advisory**:
+nothing else in the code refuses to proceed on that status. Passing
+`material_ids` also checks each material's stored AI-training flag.
 
 Validation happens before anything is written, and each operation is a single
 transaction, so a failed check leaves no partial records.
@@ -113,7 +127,7 @@ node --test tests/js/plan.test.js   # JavaScript tests (rendering, XSS safety, v
 python scripts/build_site.py _site && python -m http.server -d _site 8000   # preview the page
 ```
 
-The Python suite covers every gate above, transactional behaviour, the
+The Python suite covers every gate above (publication gates in `tests/test_hardening.py`), transactional behaviour, the
 append-only audit log, idempotency, the impact report, the demo, the original
 script's behaviour, and the plan generator (all sections present, location in
 the output, no nation names or figures, input validation, Markdown escaping,

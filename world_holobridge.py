@@ -23,6 +23,7 @@ Version: 0.2.0
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
 from contextlib import contextmanager
+import hashlib
 from datetime import date, datetime, timedelta, timezone
 import argparse
 import json
@@ -33,6 +34,7 @@ import re
 import sqlite3
 import sys
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Set, Union
+import urllib.parse
 import uuid
 
 __version__ = "0.2.0"
@@ -55,6 +57,15 @@ REQUIRED_ACCESSIBILITY: Set[str] = {
 }
 
 SEVERITIES: Set[str] = {"low", "medium", "high", "critical"}
+
+# An open incident of one of these severities, linked to a project, blocks
+# publication of that project until it is resolved. Lower severities are
+# reported as warnings (and block only in strict mode).
+BLOCKING_INCIDENT_SEVERITIES: Set[str] = {"high", "critical"}
+
+# Accessibility evidence references (see verify_accessibility_reference).
+_EVIDENCE_TEXT_SUFFIXES: Set[str] = {".txt", ".md", ".vtt", ".srt", ".html", ".htm", ".json", ".xml", ".ttml", ".csv"}
+_EVIDENCE_CAPTION_SUFFIXES: Set[str] = {".vtt", ".srt"}
 
 _con: Optional[sqlite3.Connection] = None
 
@@ -157,6 +168,30 @@ CREATE TABLE IF NOT EXISTS project_materials (
     FOREIGN KEY(material_id) REFERENCES indigenous_materials(id)
 );
 
+-- Contributors a project declares as paid. publish_project refuses to publish
+-- while any of them has no contract on the project.
+CREATE TABLE IF NOT EXISTS project_paid_contributors (
+    project_id TEXT NOT NULL,
+    contributor_id TEXT NOT NULL,
+    PRIMARY KEY(project_id, contributor_id),
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(contributor_id) REFERENCES contributors(id)
+);
+
+-- Optional references (file, URL or text) for the declared accessibility
+-- features, and how far each was verified when it was recorded.
+CREATE TABLE IF NOT EXISTS accessibility_evidence (
+    project_id TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    verification TEXT NOT NULL,
+    sha256 TEXT,
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY(project_id, feature),
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+);
+
 CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY,
     contributor_id TEXT NOT NULL,
@@ -172,6 +207,22 @@ CREATE TABLE IF NOT EXISTS contracts (
     FOREIGN KEY(contributor_id) REFERENCES contributors(id),
     FOREIGN KEY(project_id) REFERENCES projects(id)
 );
+
+-- External AI training is never permitted for Indigenous material: the flag
+-- exists so that downstream tools can read it, and these triggers keep it at 0.
+CREATE TRIGGER IF NOT EXISTS indigenous_materials_no_ai_training_insert
+BEFORE INSERT ON indigenous_materials
+WHEN NEW.external_ai_training != 0
+BEGIN
+    SELECT RAISE(ABORT, 'external AI training is never permitted for Indigenous material');
+END;
+
+CREATE TRIGGER IF NOT EXISTS indigenous_materials_no_ai_training_update
+BEFORE UPDATE OF external_ai_training ON indigenous_materials
+WHEN NEW.external_ai_training != 0
+BEGIN
+    SELECT RAISE(ABORT, 'external AI training is never permitted for Indigenous material');
+END;
 
 CREATE TABLE IF NOT EXISTS incidents (
     id TEXT PRIMARY KEY,
@@ -504,6 +555,108 @@ def register_indigenous_material(adapter: WorldHoloBridgeAdapter, title: str, au
     return material_id
 
 
+def verify_accessibility_reference(reference: Any, base_dir: Union[str, Path, None] = None) -> Dict[str, Any]:
+    """Checks one accessibility evidence reference with the standard library only.
+
+    A reference is a string in one of three explicit forms:
+
+    * ``file:<path>`` - a local file (relative paths resolve against
+      ``base_dir``, default the current directory). It must exist, be a
+      regular file and not be empty. Text-like files (.txt, .md, .vtt, .srt,
+      .html, .json, ...) must be UTF-8 and contain more than whitespace;
+      caption files (.vtt, .srt) must contain at least one cue (a line with
+      ``-->``). Verification level ``file_non_empty``; a SHA-256 of the file is
+      returned.
+    * ``http://...`` or ``https://...`` - checked for syntax only (scheme and
+      host present, no whitespace). It is **not fetched**: verification level
+      ``url_syntax_only`` says nothing about whether the page exists.
+    * ``text:<description>`` - a non-empty description (for example of a staffed
+      alternative). Verification level ``text_declared_only``: it cannot be
+      verified.
+
+    Anything else, or an empty value, raises ``ValueError``. Returns
+    ``{"kind", "reference", "verification", "sha256"}`` where ``reference`` is
+    normalised (file paths become absolute).
+    """
+    if not isinstance(reference, str) or not reference.strip():
+        raise ValueError("Accessibility reference must be a non-empty string.")
+    ref = reference.strip()
+
+    if ref.startswith(("http://", "https://")):
+        parts = urllib.parse.urlsplit(ref)
+        if not parts.netloc or not parts.hostname or re.search(r"\s", ref):
+            raise ValueError("Accessibility reference is not a valid http(s) URL.")
+        return {"kind": "url", "reference": ref, "verification": "url_syntax_only", "sha256": None}
+
+    if ref.startswith("text:"):
+        description = ref[len("text:"):].strip()
+        if not description:
+            raise ValueError("Accessibility reference 'text:' needs a description.")
+        return {"kind": "text", "reference": "text:" + description,
+                "verification": "text_declared_only", "sha256": None}
+
+    if ref.startswith("file:"):
+        raw = ref[len("file:"):].strip()
+        if not raw:
+            raise ValueError("Accessibility reference 'file:' needs a path.")
+        path = Path(raw)
+        if not path.is_absolute():
+            path = Path(base_dir if base_dir is not None else Path.cwd()) / path
+        path = path.resolve()
+        if not path.is_file():
+            raise ValueError(f"Accessibility file does not exist or is not a regular file: {path.name}")
+        data = path.read_bytes()
+        if not data:
+            raise ValueError(f"Accessibility file is empty: {path.name}")
+        suffix = path.suffix.lower()
+        if suffix in _EVIDENCE_TEXT_SUFFIXES:
+            try:
+                text = data.decode("utf-8-sig")
+            except UnicodeDecodeError as exc:
+                raise ValueError(f"Accessibility file is not valid UTF-8 text: {path.name}") from exc
+            if not text.strip():
+                raise ValueError(f"Accessibility file contains only whitespace: {path.name}")
+            if suffix in _EVIDENCE_CAPTION_SUFFIXES and "-->" not in text:
+                raise ValueError(f"Caption file has no cues: {path.name}")
+        return {"kind": "file", "reference": f"file:{path}", "verification": "file_non_empty",
+                "sha256": hashlib.sha256(data).hexdigest()}
+
+    raise ValueError("Accessibility reference must start with 'file:', 'http://', 'https://' or 'text:'.")
+
+
+def withdraw_public_display(material_id: str) -> bool:
+    """Withdraws public-display permission from Indigenous material. A project
+    that has the material attached can then no longer be published. Returns
+    False (no change, no new audit entry) if permission was already withdrawn.
+    The prototype has no log-in: it does not check who calls this."""
+    material = row(
+        """SELECT m.id, m.public_display, c.name AS authority_name
+           FROM indigenous_materials m JOIN contributors c ON c.id = m.authority_id
+           WHERE m.id = ?""",
+        (material_id,),
+    )
+    if not material:
+        raise ValueError("Indigenous material does not exist.")
+    if not material["public_display"]:
+        return False
+    with _transaction() as con:
+        con.execute("UPDATE indigenous_materials SET public_display = 0 WHERE id = ?", (material_id,))
+        _audit(con, material["authority_name"], "withdraw_public_display",
+               "indigenous_material", material_id, {"public_display": False})
+    return True
+
+
+def ai_training_allowed(material_id: str) -> bool:
+    """Whether external AI training is permitted for a registered Indigenous
+    material. Reads the stored flag, which SQLite triggers keep at 0, so this
+    is always False for existing material. Nothing in this repository trains a
+    model: a downstream tool has to call this (or read the flag) and honour it."""
+    material = row("SELECT external_ai_training FROM indigenous_materials WHERE id = ?", (material_id,))
+    if not material:
+        raise ValueError("Indigenous material does not exist.")
+    return bool(material["external_ai_training"])
+
+
 def create_contract(contributor_id: str, project_id: str, role: str, amount: float, currency: str = "CAD", attribution: str = "Named contributor", license_terms: str = "To be agreed before production", revenue_share: str = "To be agreed before production") -> str:
     if (isinstance(amount, bool) or not isinstance(amount, (int, float))
             or not math.isfinite(amount) or amount <= 0):
@@ -564,9 +717,17 @@ def mark_paid(contract_id: str, payment_reference: str) -> bool:
     return True
 
 
-def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: str, human_lead: str, contributor_ids: List[str], accessibility: Iterable[str], indigenous_material_ids: Optional[List[str]] = None) -> str:
+def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: str, human_lead: str, contributor_ids: List[str], accessibility: Iterable[str], indigenous_material_ids: Optional[List[str]] = None, paid_contributor_ids: Optional[List[str]] = None, accessibility_evidence: Optional[Dict[str, str]] = None, evidence_base_dir: Union[str, Path, None] = None) -> str:
     """Validates every gate first, then writes the project, its contributors,
-    its materials and the audit entry in a single transaction."""
+    its materials and the audit entry in a single transaction.
+
+    ``paid_contributor_ids`` (optional, a subset of ``contributor_ids``)
+    declares who is expected to be paid; ``publish_project`` refuses to publish
+    while any of them has no contract on the project.
+    ``accessibility_evidence`` (optional) maps a declared accessibility feature
+    to a reference checked by ``verify_accessibility_reference``; a reference
+    that fails the check makes creation fail. Without it, the accessibility
+    gate only checks that the feature names are declared."""
     if not adapter.guardrails_active:
         raise PermissionError("Guardrails must remain active.")
 
@@ -583,6 +744,22 @@ def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: st
     missing = REQUIRED_ACCESSIBILITY - accessibility
     if missing:
         raise ValueError(f"Missing required accessibility features: {sorted(missing)}")
+
+    paid_ids = list(dict.fromkeys(paid_contributor_ids or []))
+    not_listed = [cid for cid in paid_ids if cid not in contributor_ids]
+    if not_listed:
+        raise ValueError("Paid contributors must also be listed as project contributors.")
+
+    evidence: Dict[str, Dict[str, Any]] = {}
+    if accessibility_evidence is not None and not isinstance(accessibility_evidence, dict):
+        raise ValueError("accessibility_evidence must map feature names to references.")
+    for feature, reference in (accessibility_evidence or {}).items():
+        if feature not in accessibility:
+            raise ValueError(f"Evidence given for an undeclared accessibility feature: {feature!r}")
+        try:
+            evidence[feature] = verify_accessibility_reference(reference, evidence_base_dir)
+        except ValueError as exc:
+            raise ValueError(f"Accessibility evidence for {feature!r}: {exc}") from exc
 
     unconsented = [
         cid for cid in contributor_ids
@@ -627,22 +804,197 @@ def create_project(adapter: WorldHoloBridgeAdapter, theme: str, media_format: st
                 "INSERT INTO project_materials VALUES (?, ?)",
                 (project_id, material_id),
             )
-        _audit(con, "project_lead", "create_project", "project", project_id, {
+        for cid in paid_ids:
+            con.execute(
+                "INSERT INTO project_paid_contributors VALUES (?, ?)",
+                (project_id, cid),
+            )
+        recorded_at = utc_now()
+        for feature, ev in sorted(evidence.items()):
+            con.execute(
+                """INSERT INTO accessibility_evidence
+                   (project_id, feature, reference, kind, verification, sha256, recorded_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (project_id, feature, ev["reference"], ev["kind"], ev["verification"],
+                 ev["sha256"], recorded_at),
+            )
+        details = {
             "theme": theme,
             "media_format": media_format,
             "human_lead": human_lead,
             "contributors": contributor_ids,
             "indigenous_materials": material_ids,
             "accessibility": sorted(accessibility),
-        })
+        }
+        if paid_ids:
+            details["paid_contributors"] = paid_ids
+        if evidence:
+            details["accessibility_evidence"] = {
+                f: {"verification": ev["verification"], "kind": ev["kind"]}
+                for f, ev in sorted(evidence.items())
+            }
+        _audit(con, "project_lead", "create_project", "project", project_id, details)
     return project_id
 
 
-def publish_project(project_id: str, approved_by: str) -> bool:
-    """Publishes a project. Blocks while any contract is unpaid or while any
-    project contributor lacks active community-storytelling consent (e.g. it
-    was withdrawn or expired after the project was created). Returns False if
-    the project is already published."""
+class PublicationBlocked(PermissionError):
+    """Raised by ``publish_project`` when a gate fails. Subclasses
+    ``PermissionError`` so existing handlers keep working; ``.report`` is the
+    full ``publication_report`` and ``.blockers`` its failing checks."""
+
+    def __init__(self, message: str, report: Dict[str, Any]) -> None:
+        super().__init__(message)
+        self.report = report
+        self.blockers = report["blockers"]
+
+
+def _check(gate: str, status: str, code: str, message: str) -> Dict[str, str]:
+    return {"gate": gate, "status": status, "code": code, "message": message}
+
+
+def publication_report(project_id: str, strict: bool = False) -> Dict[str, Any]:
+    """Runs every publication gate on a project and returns the result without
+    changing anything.
+
+    Each check is ``{"gate", "status", "code", "message"}`` with status
+    ``pass``, ``warn`` or ``fail``; ``blockers`` lists the failures,
+    ``warnings`` the warnings and ``can_publish`` is True when there are no
+    blockers. Gates: ``payment``, ``consent``, ``incidents``, ``accessibility``
+    and ``public_display``. In strict mode, conditions that are only warnings by
+    default also block (see README, "Strict publication")."""
+    project = row("SELECT id, status, accessibility FROM projects WHERE id = ?", (project_id,))
+    if not project:
+        raise ValueError("Project does not exist.")
+    checks: List[Dict[str, str]] = []
+    warn_or_fail = "fail" if strict else "warn"
+
+    # --- payment ---------------------------------------------------------
+    contracts = rows("SELECT contributor_id, payment_status FROM contracts WHERE project_id = ?", (project_id,))
+    contributor_ids = [r["contributor_id"] for r in rows(
+        "SELECT contributor_id FROM project_contributors WHERE project_id = ?", (project_id,))]
+    declared_paid = [r["contributor_id"] for r in rows(
+        "SELECT contributor_id FROM project_paid_contributors WHERE project_id = ?", (project_id,))]
+    contracted = {c["contributor_id"] for c in contracts}
+    problems = False
+    if any(c["payment_status"] != "paid" for c in contracts):
+        problems = True
+        checks.append(_check("payment", "fail", "payments_outstanding",
+                             "Project cannot be published while contributor payments are outstanding."))
+    missing_declared = [cid for cid in declared_paid if cid not in contracted]
+    if missing_declared:
+        problems = True
+        checks.append(_check("payment", "fail", "declared_paid_contributor_without_contract",
+                             f"Project cannot be published: {len(missing_declared)} contributor(s) declared as paid "
+                             "have no contract on this project."))
+    if not contracts:
+        problems = True
+        checks.append(_check("payment", warn_or_fail, "no_contracts_recorded",
+                             "No contracts are recorded for this project, so the payment gate had nothing to check."))
+    else:
+        undeclared = [cid for cid in contributor_ids if cid not in contracted and cid not in missing_declared]
+        if undeclared:
+            problems = True
+            checks.append(_check("payment", warn_or_fail, "contributors_without_contract",
+                                 f"{len(undeclared)} project contributor(s) have no contract on this project."))
+    if not problems:
+        checks.append(_check("payment", "pass", "payments_ok", "All recorded contracts are paid."))
+
+    # --- consent ---------------------------------------------------------
+    lapsed = [cid for cid in contributor_ids if not consent_allows(cid, "community_storytelling")]
+    if lapsed:
+        checks.append(_check("consent", "fail", "consent_lapsed",
+                             "Project cannot be published: a contributor no longer has active "
+                             "consent for community storytelling."))
+    else:
+        checks.append(_check("consent", "pass", "consent_ok", "Every contributor has active consent."))
+
+    # --- incidents -------------------------------------------------------
+    open_incidents = rows(
+        "SELECT id, project_id, severity FROM incidents WHERE status = 'open' "
+        "AND (project_id = ? OR project_id IS NULL)", (project_id,))
+    linked = [i for i in open_incidents if i["project_id"] == project_id]
+    unlinked = [i for i in open_incidents if i["project_id"] is None]
+    blocking = [i for i in linked if i["severity"] in BLOCKING_INCIDENT_SEVERITIES]
+    minor = [i for i in linked if i["severity"] not in BLOCKING_INCIDENT_SEVERITIES]
+    unlinked_serious = [i for i in unlinked if i["severity"] in BLOCKING_INCIDENT_SEVERITIES]
+    if blocking:
+        checks.append(_check("incidents", "fail", "open_incident_blocks_publication",
+                             f"Project cannot be published while {len(blocking)} open incident(s) of severity "
+                             f"{'/'.join(sorted(BLOCKING_INCIDENT_SEVERITIES))} linked to it are unresolved."))
+    if minor:
+        checks.append(_check("incidents", warn_or_fail, "open_minor_incidents",
+                             f"{len(minor)} open incident(s) of lower severity are linked to this project."))
+    if unlinked_serious:
+        checks.append(_check("incidents", warn_or_fail, "open_unlinked_serious_incidents",
+                             f"{len(unlinked_serious)} open high/critical incident(s) name no project, so they "
+                             "cannot be tied to this one."))
+    if not (blocking or minor or unlinked_serious):
+        checks.append(_check("incidents", "pass", "no_open_incidents", "No open incident is linked to this project."))
+
+    # --- accessibility -----------------------------------------------------
+    declared = set(json.loads(project["accessibility"]))
+    absent = sorted(REQUIRED_ACCESSIBILITY - declared)
+    if absent:
+        checks.append(_check("accessibility", "fail", "accessibility_declaration_incomplete",
+                             f"Project cannot be published: required accessibility features are not declared: {absent}."))
+    evidence = {r["feature"]: r for r in rows(
+        "SELECT * FROM accessibility_evidence WHERE project_id = ?", (project_id,))}
+    ev_problem = False
+    for feature in sorted(REQUIRED_ACCESSIBILITY & declared):
+        record = evidence.get(feature)
+        if record is None:
+            ev_problem = True
+            checks.append(_check("accessibility", warn_or_fail, "accessibility_evidence_missing",
+                                 f"No evidence reference is recorded for {feature}; only the declaration was checked."))
+            continue
+        try:
+            now = verify_accessibility_reference(record["reference"])
+        except ValueError as exc:
+            ev_problem = True
+            checks.append(_check("accessibility", "fail", "accessibility_evidence_failed",
+                                 f"Project cannot be published: evidence for {feature} no longer verifies ({exc})."))
+            continue
+        if now["sha256"] and record["sha256"] and now["sha256"] != record["sha256"]:
+            ev_problem = True
+            checks.append(_check("accessibility", "warn", "accessibility_evidence_changed",
+                                 f"The file for {feature} changed since it was recorded; review it."))
+    if not absent and not ev_problem:
+        checks.append(_check("accessibility", "pass", "accessibility_ok",
+                             "Declared features are complete and every recorded reference verifies."))
+
+    # --- public display ------------------------------------------------------
+    withdrawn = rows(
+        """SELECT m.id FROM project_materials pm
+           JOIN indigenous_materials m ON m.id = pm.material_id
+           WHERE pm.project_id = ? AND m.public_display = 0""", (project_id,))
+    if withdrawn:
+        checks.append(_check("public_display", "fail", "public_display_not_permitted",
+                             "Project cannot be published: attached material no longer has public-display permission."))
+    else:
+        checks.append(_check("public_display", "pass", "public_display_ok",
+                             "All attached registered material has public-display permission."))
+
+    blockers = [c for c in checks if c["status"] == "fail"]
+    return {
+        "project_id": project_id,
+        "strict": bool(strict),
+        "can_publish": not blockers,
+        "checks": checks,
+        "blockers": blockers,
+        "warnings": [c for c in checks if c["status"] == "warn"],
+    }
+
+
+def publish_project(project_id: str, approved_by: str, strict: bool = False) -> bool:
+    """Publishes a project after ``publication_report`` shows no blocker.
+    Blocks while any contract is unpaid, a contributor declared as paid has no
+    contract, a contributor lacks active community-storytelling consent, an open
+    high/critical incident is linked to the project, a recorded accessibility
+    reference no longer verifies, or attached material lost its public-display
+    permission. Warnings (for example "no contracts recorded") do not block but
+    are written into the audit entry. ``strict=True`` turns the warnings listed in
+    the README into blockers. Returns False if the project is already published;
+    raises ``PublicationBlocked`` (a ``PermissionError``) otherwise."""
     project = row("SELECT id, status FROM projects WHERE id = ?", (project_id,))
     if not project:
         raise ValueError("Project does not exist.")
@@ -650,37 +1002,28 @@ def publish_project(project_id: str, approved_by: str) -> bool:
     if project["status"] == "published":
         return False
 
-    unpaid = rows(
-        """SELECT id FROM contracts
-           WHERE project_id = ? AND payment_status != 'paid'""",
-        (project_id,),
-    )
-    if unpaid:
-        raise PermissionError(
-            "Project cannot be published while contributor payments are outstanding."
-        )
-
-    contributor_ids = [r["contributor_id"] for r in rows(
-        "SELECT contributor_id FROM project_contributors WHERE project_id = ?",
-        (project_id,),
-    )]
-    if any(not consent_allows(cid, "community_storytelling") for cid in contributor_ids):
-        raise PermissionError(
-            "Project cannot be published: a contributor no longer has active "
-            "consent for community storytelling."
-        )
+    report = publication_report(project_id, strict=strict)
+    if report["blockers"]:
+        raise PublicationBlocked(" ".join(b["message"] for b in report["blockers"]), report)
 
     with _transaction() as con:
         con.execute(
             "UPDATE projects SET status = 'published' WHERE id = ?",
             (project_id,),
         )
-        _audit(con, approved_by, "publish_project", "project", project_id,
-               {"status": "published"})
+        _audit(con, approved_by, "publish_project", "project", project_id, {
+            "status": "published",
+            "strict": bool(strict),
+            "warnings": [{"code": w["code"], "message": w["message"]} for w in report["warnings"]],
+        })
     return True
 
 
-def assess_ai_use(adapter: WorldHoloBridgeAdapter, task: str, domain: str, proposed_use: str, decision_owner: str, sensitive_data: bool = False, indigenous_material: bool = False) -> Dict[str, Any]:
+def assess_ai_use(adapter: WorldHoloBridgeAdapter, task: str, domain: str, proposed_use: str, decision_owner: str, sensitive_data: bool = False, indigenous_material: bool = False, material_ids: Optional[Sequence[str]] = None) -> Dict[str, Any]:
+    """Records an advisory assessment and returns it. The status is only a
+    returned and logged value: nothing else in this module refuses to proceed
+    on it. ``material_ids`` (registered Indigenous material) implies
+    ``indigenous_material`` and is checked against the stored AI-training flag."""
     assessment = {
         "task": validate_text(task, "Task"),
         "domain": validate_text(domain, "Domain"),
@@ -696,6 +1039,14 @@ def assess_ai_use(adapter: WorldHoloBridgeAdapter, task: str, domain: str, propo
         assessment["blockers"].append(
             "Sensitive data requires consent, minimization, retention limits, and a lawful basis."
         )
+
+    material_ids = list(dict.fromkeys(material_ids or []))
+    if material_ids:
+        indigenous_material = True
+        assessment["material_ids"] = material_ids
+        for material_id in material_ids:
+            if ai_training_allowed(material_id):  # raises ValueError if unknown
+                assessment["blockers"].append(f"Material {material_id} is marked as available for AI training.")
 
     if indigenous_material:
         assessment["blockers"].append(
@@ -996,8 +1347,9 @@ def run_plan_pipeline(plan: Dict[str, Any]) -> Dict[str, Any]:
     checks.append({"gate": "consent", "result": "active community_storytelling consent recorded"})
 
     features = {i["label"] for i in _plan_section(plan, "accessibility")["items"]}
-    project_id = create_project(adapter, "Placeholder theme", "Placeholder format", "Placeholder human lead", people, features)
-    checks.append({"gate": "accessibility", "result": "project created with all required features"})
+    project_id = create_project(adapter, "Placeholder theme", "Placeholder format", "Placeholder human lead", people, features,
+                                 paid_contributor_ids=people)
+    checks.append({"gate": "accessibility", "result": "project created with all required features (names declared; no evidence references in this placeholder run)"})
 
     contracts = [create_contract(cid, project_id, "Placeholder role", 1.0) for cid in people]
     try:
