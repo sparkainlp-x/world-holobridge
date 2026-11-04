@@ -1,44 +1,13 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
-title: "World-HoloBridge: governance reference prototype and community plan generator"
-type: software
+message: If you use this software, please cite it.
+title: World-HoloBridge - Governance workflow for community media projects
 authors:
-  - family-names: "Brisson"
-    given-names: "Jean-François"
-    affiliation: "Spark AI NLP"
-    orcid: "https://orcid.org/0009-0000-9778-5374"
-repository-code: "https://github.com/sparkainlp-x/world-holobridge"
-license:
-  - MIT
-  - Apache-2.0
-version: "0.2.0"
-date-released: "2026-10-16"
+  - family-names: Brisson
+    given-names: Jean-François
+    orcid: https://orcid.org/0009-0000-9778-5374
+version: 0.2.0
 doi: 10.5281/zenodo.23423941
-identifiers:
-  - type: doi
-    value: 10.5281/zenodo.23423941
-    description: "Concept DOI (all versions)"
-  - type: doi
-    value: 10.5281/zenodo.23423942
-    description: "Version DOI for v0.2.0"
-keywords:
-  - governance
-  - consent management
-  - data governance
-  - accessibility
-  - audit log
-  - digital humanities
-  - research software
-abstract: >-
-  A small Python and SQLite reference prototype of a governance workflow for
-  community-led cultural and spatial-media projects. It encodes gates for
-  contributor consent (expiry, withdrawal, prohibited uses), a registered
-  Indigenous governance authority for Indigenous material, public-display
-  permission, required accessibility features, payment before publication,
-  incident reporting, an append-only audit log and an impact-report export.
-  It also generates a starting community plan for any city, in Python and in a
-  static English/French web page, without naming Indigenous nations or adding
-  local statistics.
-  Dual-licensed MIT OR Apache-2.0. Not legal advice and not a production
-  system. No endorsement by, or consultation with, any Wolastoqey community or
-  other community is claimed; names in the demo are placeholders.
+abstract: Reference prototype (Python + SQLite) of a governance workflow for community media projects with consent, cultural-authority, accessibility and payment gates and an append-only audit log.
+keywords: [governance, consent, accessibility, audit-log, community-media, fail-closed]
+license: MIT
+repository-code: https://github.com/sparkainlp-x/world-holobridge
