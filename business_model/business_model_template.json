@@ -1,103 +1,134 @@
 {
   "business_model": {
-    "status": "proposed",
+    "break_even": {
+      "assumptions": [],
+      "average_monthly_contribution": 0.0,
+      "break_even_subscriptions": 0,
+      "calculation_status": "not_run",
+      "limitations": [],
+      "monthly_fixed_costs": 0.0
+    },
+    "content_allowance": {
+      "accessibility_checks_included": 0,
+      "monthly_assets_included": 0,
+      "overage_unit_prices": {
+        "accessibility_check": 0.0,
+        "asset": 0.0,
+        "revision": 500.0,
+        "support_hour": 0.0,
+        "translation": 0.0
+      },
+      "revisions_included": 0,
+      "support_hours_included": 0.0,
+      "translations_included": 0
+    },
+    "content_capacity": {
+      "accessibility_check_multiplier": 0.5,
+      "accessibility_checks": 0,
+      "monthly_assets": 0,
+      "monthly_capacity_units": 0.0,
+      "revision_multiplier": 0.5,
+      "revisions": 0,
+      "support_hour_multiplier": 0.25,
+      "support_hours": 0.0,
+      "translation_multiplier": 1.0,
+      "translations": 0
+    },
     "currency": "CAD",
+    "evidence_links": {
+      "content_workload_logs": [],
+      "contracts": [],
+      "customer_feedback": [],
+      "measured_costs": [],
+      "quotes": [],
+      "rental_quotes": [],
+      "sensitivity_assumptions": [],
+      "supplier_specifications": [],
+      "workforce_plan": []
+    },
     "evidence_status": "proposed_not_measured",
+    "monthly_fixed_costs": {
+      "administrative": 0.0,
+      "insurance": 0.0,
+      "other": 0.0,
+      "software_and_tools": 0.0,
+      "team_base": 0.0,
+      "workspace": 0.0
+    },
+    "monthly_variable_costs": {
+      "accessibility_testing": 0.0,
+      "ai_inference": 0.0,
+      "content_production": 0.0,
+      "hosting": 0.0,
+      "maintenance": 0.0,
+      "other": 0.0,
+      "payment_processing": 0.0,
+      "rental_cost_recovery": 0.0,
+      "support_hours": 0.0
+    },
     "pricing_model": {
-      "service_monthly": 1300.00,
-      "rental_monthly": 0.00,
-      "content_subscription_monthly": 0.00,
-      "accessibility_subscription_monthly": 0.00,
-      "nfc_campaign_monthly": 0.00,
-      "avatar_service_monthly": 0.00,
-      "onboarding_fee": 0.00,
-      "modification_fee": 500.00,
-      "contract_months": 12,
+      "accessibility_subscription_monthly": 0.0,
+      "avatar_service_monthly": 0.0,
       "billing_frequency": "monthly",
+      "content_subscription_monthly": 0.0,
+      "contract_months": 12,
+      "modification_fee": 500.0,
+      "nfc_campaign_monthly": 0.0,
+      "onboarding_fee": 0.0,
+      "rental_monthly": 0.0,
+      "service_monthly": 1300.0,
       "tax_treatment": "to_be_determined"
     },
     "recurring_revenue": {
-      "service_monthly": 1300.00,
-      "rental_monthly": 0.00,
-      "content_monthly": 0.00,
-      "accessibility_monthly": 0.00,
-      "nfc_monthly": 0.00,
-      "avatar_monthly": 0.00,
-      "other_monthly": 0.00
-    },
-    "monthly_variable_costs": {
-      "ai_inference": 0.00,
-      "hosting": 0.00,
-      "support_hours": 0.00,
-      "content_production": 0.00,
-      "accessibility_testing": 0.00,
-      "maintenance": 0.00,
-      "rental_cost_recovery": 0.00,
-      "payment_processing": 0.00,
-      "other": 0.00
-    },
-    "monthly_fixed_costs": {
-      "team_base": 0.00,
-      "software_and_tools": 0.00,
-      "insurance": 0.00,
-      "workspace": 0.00,
-      "administrative": 0.00,
-      "other": 0.00
+      "accessibility_monthly": 0.0,
+      "avatar_monthly": 0.0,
+      "content_monthly": 0.0,
+      "nfc_monthly": 0.0,
+      "other_monthly": 0.0,
+      "rental_monthly": 0.0,
+      "service_monthly": 1300.0
     },
     "rental_recovery": {
-      "equipment_landed_cost": 0.00,
-      "installation_cost": 0.00,
+      "equipment_landed_cost": 0.0,
+      "installation_cost": 0.0,
+      "monthly_maintenance": 0.0,
       "planned_service_life_months": 36,
-      "maintenance_monthly": 0.00,
-      "risk_reserve_monthly": 0.00,
-      "required_rental_margin_monthly": 0.00
-    },
-    "workforce": {
-      "paid_roles": [],
-      "worker_control_principles": [],
-      "paid_hours_monthly": 0.0,
-      "hourly_rate": 0.00,
-      "accommodation_costs_monthly": 0.00,
-      "subsidy_support_monthly": 0.00,
-      "subsidy_end_date": null,
-      "subsidy_independent_plan": true
-    },
-    "content_allowance": {
-      "monthly_assets_included": 0,
-      "revisions_included": 0,
-      "translations_included": 0,
-      "accessibility_checks_included": 0,
-      "support_hours_included": 0.0,
-      "overage_unit_prices": {
-        "asset": 0.00,
-        "revision": 500.00,
-        "translation": 0.00,
-        "accessibility_check": 0.00,
-        "support_hour": 0.00
-      }
-    },
-    "break_even": {
-      "monthly_fixed_costs": 0.00,
-      "average_monthly_contribution": 0.00,
-      "break_even_subscriptions": 0,
-      "calculation_status": "not_run",
-      "assumptions": [],
-      "limitations": []
+      "required_rental_margin": 0.0,
+      "risk_reserve": 0.0
     },
     "sensitivity": {
-      "renewal_rate": 0.0,
       "customer_churn_monthly": 0.0,
-      "payment_delay_days": 0,
-      "support_overrun_multiplier": 1.0,
+      "downside_scenarios": [
+        {
+          "customer_churn_monthly": 0.1,
+          "name": "high_churn",
+          "renewal_rate": 0.7
+        },
+        {
+          "name": "late_payments_plus_overrun",
+          "payment_delay_days": 45,
+          "support_overrun_multiplier": 1.5
+        },
+        {
+          "equipment_replacement_reserve_multiplier": 2.0,
+          "name": "replacement_reserve_doubles"
+        }
+      ],
       "equipment_replacement_reserve_multiplier": 1.0,
-      "downside_scenarios": []
+      "payment_delay_days": 0,
+      "renewal_rate": 0.0,
+      "support_overrun_multiplier": 1.0
     },
-    "evidence_links": {
-      "quotes": [],
-      "supplier_specifications": [],
-      "contracts": [],
-      "measured_costs": [],
-      "customer_feedback": []
+    "status": "proposed",
+    "workforce": {
+      "accommodation_costs_monthly": 0.0,
+      "hourly_rate": 0.0,
+      "paid_hours_monthly": 0.0,
+      "paid_roles": [],
+      "subsidy_end_date": null,
+      "subsidy_independent_plan": true,
+      "subsidy_support_monthly": 0.0,
+      "worker_control_principles": []
     }
   }
 }

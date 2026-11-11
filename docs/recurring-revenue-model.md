@@ -69,7 +69,46 @@ rental price =
 ```
 
 The model separates rental recovery from creative-service revenue. This
-prevents unclear hardware economics and unlimited-service exposure.
+prevents unclear hardware economics and unlimited-service exposure. The
+replacement-reserve multiplier in the sensitivity analysis scales only
+the risk-reserve portion of the capital to recover.
+
+## Sensitivity analysis
+
+Sensitivity parameters are modelled assumptions, not measured customer
+behaviour:
+
+- Renewal rate: share of subscriptions renewing at contract end.
+- Monthly churn: share of active customers lost per month. Retained
+  revenue for one month is `monthly recurring revenue * (1 - churn)`.
+- Payment delay: working capital tied up is roughly
+  `monthly recurring revenue * delay_days / 30`, a cash-flow timing
+  effect, not a profit-and-loss cost.
+- Support overrun multiplier: scales only the support-hours cost line.
+- Equipment replacement reserve multiplier: scales only the risk-reserve
+  portion of rental capital.
+- Downside scenarios: named parameter sets run against the same model and
+  report their own contribution and break-even count.
+
+## Content capacity
+
+Content work is bounded. A fixed monthly subscription never includes
+unlimited content creation. Workload is measured in asset-equivalent
+units:
+
+```text
+workload = assets
+  + revisions * revision_multiplier
+  + translations * translation_multiplier
+  + accessibility checks * accessibility_check_multiplier
+  + support hours * support_hour_multiplier
+```
+
+Default multipliers are transparent planning assumptions: revision 0.5,
+translation 1.0, accessibility check 0.5, support hour 0.25. Capacity
+utilization is workload divided by monthly capacity. Above 1.0 the plan
+is over capacity; the excess is reported as overage units and must be
+priced separately or scoped down.
 
 ## Workforce boundary
 
@@ -86,7 +125,11 @@ The model tracks:
 - A funding-independent continuation plan.
 
 Grants, wage supports, and sponsorship revenue must remain separate from
-customer subscription revenue.
+customer subscription revenue. The report shows the monthly workforce
+cost, the net cost after subsidy, and the post-subsidy cost the business
+must carry once the subsidy ends. When the subsidy covers the full
+workforce cost and no continuation plan is recorded, the report flags a
+continuation risk.
 
 ## Decision rules
 
@@ -96,7 +139,9 @@ customer subscription revenue.
 | Fixed costs are unknown | Do not report break-even |
 | Rental cost is not separated | Do not offer an all-inclusive subscription |
 | Content work is unlimited | Do not offer a fixed monthly price |
+| Content workload exceeds capacity | Price the overage or reduce scope |
 | Subsidy covers payroll | Track separately and plan for its end |
+| Subsidy covers payroll with no continuation plan | Flag continuation risk; do not claim sustainability |
 | Customer requests custom work | Quote it separately |
 | Outdoor installation is proposed | Require engineering, safety, and maintenance review |
 
@@ -111,3 +156,4 @@ Before describing the service as commercially validated, collect:
 - Accessibility-testing results.
 - Customer-renewal or cancellation data.
 - A cash-flow schedule including payment timing and working capital.
+- A funding-independent workforce plan with the subsidy end date.
